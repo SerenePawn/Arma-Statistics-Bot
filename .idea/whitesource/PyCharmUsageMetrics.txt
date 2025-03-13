@@ -1,1 +1,1 @@
-{"dataValues":{"VULN_INFO_CL":"0"}}
+{"dataValues":{"VULN_INFO_CL":"0","C1":"false","C2":"L","C3":"false","C4":"false","C5":"false"}}

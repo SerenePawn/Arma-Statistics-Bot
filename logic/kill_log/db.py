@@ -15,6 +15,7 @@ async def create_ocap(conn: Connection, form: OcapForm) -> int:
                 "filename": form.ocap.filename,
                 "length_seconds": form.ocap.length_seconds,
                 "game_type": form.ocap.game_type,
+                "date_number": form.ocap.date_number,
             },
             commit=False
         )
@@ -112,7 +113,7 @@ async def get_ocap_detail(conn: Connection, game_type: GameType, clan_tag: str, 
             SELECT o.id
             FROM ocaps o
             WHERE o.game_type = '{game_type}'
-            ORDER BY o.filename DESC
+            ORDER BY o.date_number DESC
             LIMIT 1 OFFSET {ocap_offset}
         )
     """

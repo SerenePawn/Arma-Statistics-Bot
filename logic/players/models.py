@@ -4,14 +4,16 @@ from pydantic import BaseModel
 
 
 class PlayerForm(BaseModel):
-    name: str
     squad_id: int
     telegram_id: int
+    telegram_tag: str
+    name: str
 
 
 class Player(BaseModel):
     id: int
-    name: str
     squad_id: int
     telegram_id: int
+    telegram_tag: str
+    name: str
     created_at: datetime

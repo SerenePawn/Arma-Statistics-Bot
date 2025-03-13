@@ -34,8 +34,8 @@ async def startup_app(params: list[str]):
     logger.info("Init bg tasks")
     bg_loop = asyncio.get_event_loop()
     state.background_tasks_threads.extend((
-        threading.Thread(target=bg_ocaps, args=(state, bg_loop)),
-        threading.Thread(target=bg_attendances, args=(state, bg_loop)),
+        threading.Thread(target=bg_ocaps, args=(state, bg_loop), daemon=True),
+        threading.Thread(target=bg_attendances, args=(state, bg_loop), daemon=True),
     ))
     for thread in state.background_tasks_threads:
         thread.start()

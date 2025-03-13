@@ -11,7 +11,7 @@ async def main_menu_open(message: Message, squad: Squad | None = None):
     await app_state.bot.send_message(
         message.chat.id,
         message_thread_id=message.message_thread_id,
-        text="Перед взаимодействием с ботом, чирканите ему в личку /start\nГлавное меню",
+        text="Перед взаимодействием с ботом, напишите ему в личку /start\nГлавное меню",
         reply_markup=MARKUP_MAIN_MENU,
         protect_content=True,
         disable_notification=True

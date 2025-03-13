@@ -12,9 +12,11 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery
 from aiogram.utils.formatting import as_list, as_marked_section, Bold, BlockQuote, as_line
 
+from app.attendances.shortcuts import set_user_private_attendance
 from app.kill_log.shortcuts import edit_ui_with_ocap
 from app.main_menu.fsm import SquadFSM
 from app.main_menu.misc import main_menu_open, main_menu_ui_open
+from app.schedule.shortcuts import set_user_private_schedule
 from app.shortcuts import allow_msg_edit
 from core.app_state import AppState
 from logic.attendances import db as attendances_db
@@ -48,41 +50,6 @@ ATTENDANCE_STR_MAP = {
     AttendStatus.DOUBTS: "Сомневаются",
     AttendStatus.WILL_NOT_ATTEND: "Не придут",
 }
-
-
-@router.message(CommandStart())
-async def start_behavior(message: types.Message):
-    match message.chat.type:
-        case ChatType.PRIVATE:
-            await message.reply(
-                    f"Привет, {message.from_user.full_name}.\n"
-                    "Чтобы получить килл-лог других отрядов, "
-                    "введите простое название (без кавычек и прочих знаков). Например, `!tvt1 re` или `!if re`\n"
-                    "Чтобы получить килл-лог за прошлые игры, введите название отряда как выше, но с `<-><кол-во игр>` "
-                    "(`-` ни на что не влияет)."
-                    "Например, `!tvt1 re 1` - получить за килл-лог отряда RE за позапрошлую игру TVT1, "
-                    "`!tvt2 re -2` - за 2 игры до последней игры TVT2, и т.д.\n"
-                    "Функционал получения килл-логов за игру пока реализован только для А3\n\n"
-                    
-                    "Настроить свое расписание в отряде - введите в личку (cюда): /schedule.\n"
-                    "Если не работает, проверьте, может ли бот прислать Вам сообщение.\n\n"
-                    
-                    "Если Вы нашли баг или имеется идея по улучшению, сообщите, пожалуйста, сюда через: /bug. "
-                    "Опишите баг как можно подробнее, пожалуйста, чтобы я мог его повторить и починить.\n"
-                    "А если интересно, что планируется еще в боте: /road_map\n\n"
-                    
-                    "ДЛЯ АДМИНОВ/ГЛАВ ОТРЯДОВ:\n"
-                    "Бот рассчитан под использование внутри темы группы, хоть и может работать в группе без тем\n"
-                    "Для того, чтобы внедрить бота в свою группу, "
-                    "просто добавь бота, выдай права админа на удаление сообщений "
-                    "и пропиши в нужной теме группы /start_asb .\n"
-                    "Не забудь настроить бота через /admin_asb "
-                    "(расписание игр, например, или можно подправить тэги или имя отряда), "
-                    "после того как добавил и стартанул бота. \n\n"
-                )
-            return
-        case ChatType.SUPERGROUP:
-            return
 
 
 @router.message(Command("start_asb"))
@@ -210,6 +177,34 @@ async def main_menu_kill_log_callback(callback: CallbackQuery):
     )
 
 
+@router.callback_query(F.data == "main_menu_players_list")
+async def main_menu_players_list_callback(callback: CallbackQuery):
+    app_state = AppState()
+    player = await players_db.get_by_tg_id(app_state.conn, callback.from_user.id)
+    if not player:
+        await callback.reply(
+            "Вы не зарегистрированы ни в одном отряде. "
+            "Напишите клан-тэг (`/player re`, например) или зарегистрируйтесь в отряде."
+        )
+        return
+    squad = await squads_db.get(app_state.conn, player.squad_id)
+    squad_players = await players_db.get_by_squad_id(app_state.conn, squad.id)
+
+    try:
+        await app_state.bot.send_message(
+            chat_id=callback.from_user.id,
+            **as_list(
+                Bold("⭐️ ", squad.name),
+                f"Тэги отряда: {", ".join(squad.tags)}\n",
+                *[
+                    f"🪖 [@{squad_player.telegram_tag}] {squad_player.name}" for squad_player in squad_players
+                ]
+            ).as_kwargs()
+        )
+    except TelegramForbiddenError:
+        await callback.answer("Перед началом работы с ботом, напишите ему в личные сообщения `/start` !")
+
+
 @router.callback_query(F.data == "main_menu_schedule_settings")
 async def main_menu_schedule_settings_callback(callback: CallbackQuery):
     app_state = AppState()
@@ -224,22 +219,28 @@ async def main_menu_schedule_settings_callback(callback: CallbackQuery):
         return
 
     try:
-        await app_state.bot.send_message(
-            chat_id=callback.from_user.id,
-            text=f"Вы запросили изменение своего расписания в отряде {squad.name}.\n\n"
-            "Чтобы изменить свое расписание в отряде, напишите здесь `/schedule`.\n"
-        )
+        await set_user_private_schedule(callback.from_user, squad)
     except TelegramForbiddenError:
+        await callback.answer("Перед началом работы с ботом, напишите ему в личные сообщения `/start` !")
+
+
+@router.callback_query(F.data == "main_menu_attendance_settings")
+async def main_menu_attendance_settings_callback(callback: CallbackQuery):
+    app_state = AppState()
+    squad = await squads_db.get_by_chat(app_state.conn, callback.message.chat.id, callback.message.message_thread_id)
+
+    player = await players_db.get_by_tg_id(app_state.conn, callback.from_user.id, squad.id)
+    if not player:
         await callback.answer(
-            "Перед тем, как бот сможет написать Вам инструкции, "
-            "перейдите в личные сообщения с ним и напишите `/start`. "
+            NOT_IN_SQUAD_MSG % squad.name,
+            cache_time=10
         )
         return
 
-    await callback.answer(
-        CHECK_MESSAGES,
-        cache_time=10
-    )
+    try:
+        await set_user_private_attendance(callback.from_user)
+    except TelegramForbiddenError:
+        await callback.answer("Перед началом работы с ботом, напишите ему в личные сообщения `/start` !")
 
 
 @router.callback_query(F.data == "main_menu_register_player")
@@ -295,17 +296,19 @@ async def player_register(message: types.Message):
         PlayerForm(
             name=new_name or name,
             telegram_id=message.from_user.id,
+            telegram_tag=message.from_user.username,
             squad_id=squad.id
         )
     )
 
-    await app_state.bot.send_message(
-        chat_id=message.from_user.id,
-        text=f"Вы были зарегистрированы как `{name}` в отряде {squad.name}.\n\n"
-             "Чтобы отвязать аккаунт от отряда, напишите здесь `/unreg`.\n"
-             "О найденных багах напишите в бота `/bug`.\n"
-             "Для полной информации по боту, напишите `/start`."
-    )
+    with suppress(TelegramBadRequest):
+        await app_state.bot.send_message(
+            chat_id=message.from_user.id,
+            text=f"Вы были зарегистрированы как `{name}` в отряде {squad.name}.\n\n"
+                 "Чтобы отвязать аккаунт от отряда, напишите здесь `/unreg`.\n"
+                 "О найденных багах напишите в бота `/bug`.\n"
+                 "Для полной информации по боту, напишите `/start`."
+        )
 
 
 @router.message(Command("unreg"))

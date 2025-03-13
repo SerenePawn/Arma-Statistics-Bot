@@ -9,6 +9,7 @@ class OcapDBForm(BaseModel):
     filename: str
     length_seconds: int
     game_type: str
+    date_number: int
 
 
 class OcapDB(BaseModel):

@@ -14,7 +14,10 @@ from core.app_state import AppState
 WEAPON_RENAME = {
     "РПГ-26 (отстрелянный)": "РПГ-26",
     "M136 HEDP (used)": "M136 (HEDP)",
-    "[CUP] Mk16 SCAR-L STD (Рукоятка) [Black]": "[CUP] Mk16 SCAR-L STD",
+    "[CUP] Mk16 SCAR-L STD (Рукоятка) [Black]": "[CUP] Mk16 SCAR-L",
+    "[CUP] Mk16 SCAR-L STD [Desert]": "[CUP] Mk16 SCAR-L",
+    "SR-25 Carbine [Woodland]": "SR-25 Carbine",
+    "M72A7 (used)": "M72A7",
 }
 
 
@@ -306,7 +309,7 @@ class OCAP(BaseModel):
             p: Player
             if not p.is_player and p.positions:
                 for pos in p.positions:
-                    if p.name != pos.player_name:
+                    if pos.player_name and p.name != pos.player_name:
                         p.name = f"{pos.player_name} [AI]"
                         break
 
@@ -408,7 +411,7 @@ def get_game_type(dt: datetime) -> GameType | None:
         case 3:  # Чт
             return GameType.TVT1
         case 4:  # Пт
-            if dt.time() < time(1):
+            if dt.time() < time(20):
                 return GameType.TVT1
             return GameType.TVT2
         case 5:  # Сб
@@ -416,5 +419,6 @@ def get_game_type(dt: datetime) -> GameType | None:
                 return GameType.TVT2
             if dt.time() > time(16):
                 return GameType.TVT1
+            return GameType.TVT2  # Если игры ТВТ2 кончились после полуночи в сб. И не позже 16:00.
         case 6:  # Вс, если ТВТ2 кончилось после полуночи
             return GameType.TVT2

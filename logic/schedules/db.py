@@ -62,14 +62,24 @@ async def get_schedule_by_player(conn: Connection, player_id: int, preset_id: in
     return model
 
 
-async def get_presets_today(conn: Connection) -> list[SchedulePreset]:
+async def get_presets(
+        conn: Connection,
+        squad_id: int | None = None,
+        all_week: bool = False,
+) -> list[SchedulePreset]:
+    where = f"sp.game_day_of_week {">=" if all_week else "="} ?"
+    values = [date.today().weekday()]
+    if squad_id:
+        where += " AND squad_id = ?"
+        values.append(squad_id)
+
     result = await db.get_by_where(
         conn,
         "schedules_presets AS sp",
-        "sp.game_day_of_week = ?",
-        [date.today().weekday()],
-        fields=["sp.*"]
-
+        where=where,
+        values=values,
+        fields=["sp.*"],
+        order_by=["game_day_of_week", "game_time"]
     )
     if not result:
         return []

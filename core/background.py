@@ -3,10 +3,12 @@ import os
 import sys
 from asyncio import AbstractEventLoop
 from collections import defaultdict
+from contextlib import suppress
 from multiprocessing import Process
 from pathlib import Path
 from time import time
 
+from aiogram.exceptions import TelegramForbiddenError
 from loguru import logger
 
 from app.attendances.misc import get_attendance_keyboard, get_attendance_text
@@ -23,7 +25,7 @@ from logic.schedules.models import SchedulePreset
 
 async def send_attendances(app_state: AppState, loop: AbstractEventLoop):
     logger.info("Sending attendances")
-    attendances_to_remind = await schedules_db.get_presets_today(app_state.conn)
+    attendances_to_remind = await schedules_db.get_presets(app_state.conn)
     logger.debug(f"{attendances_to_remind=}")
     if not attendances_to_remind:
         return
@@ -36,21 +38,25 @@ async def send_attendances(app_state: AppState, loop: AbstractEventLoop):
 
     for squad_id, attendances in squads_attendances_today.items():
         players = await players_db.get_by_squad_id(app_state.conn, squad_id)
-        for schedule in attendances:
+        for schedule_preset in attendances:
             for player in players:
                 # TODO сделать мапу посещений; оптимизация
-                attendance = await attendances_db.get_attendance(app_state.conn, schedule.id, player.id)
-                futures.append(asyncio.run_coroutine_threadsafe(
-                    app_state.bot.send_message(
-                        player.telegram_id,
-                        **get_attendance_text(schedule, attendance).as_kwargs(),
-                        reply_markup=get_attendance_keyboard(schedule.id, player.id)
-                    ),
-                    loop
-                ))
+                attendance = await attendances_db.get_attendance(app_state.conn, schedule_preset.id, player.id)
+                schedule = await schedules_db.get_schedule_by_player(app_state.conn, player.id, schedule_preset.id)
+
+                if not (attendance or schedule):
+                    futures.append(asyncio.run_coroutine_threadsafe(
+                        app_state.bot.send_message(
+                            player.telegram_id,
+                            **get_attendance_text(schedule_preset, schedule, attendance).as_kwargs(),
+                            reply_markup=get_attendance_keyboard(schedule_preset.id, player.id)
+                        ),
+                        loop
+                    ))
 
     for i in futures:
-        i.result()
+        with suppress(TelegramForbiddenError):
+            i.result()
 
 
 async def old__parse_ocaps(app_state: AppState, *args, **kwargs):
@@ -148,6 +154,7 @@ async def __parse_ocap(ocaps_path: Path, ocap_filename: str):
                 filename=ocap_filename,
                 length_seconds=ocap.max_frame,
                 game_type=ocap.game_type,
+                date_number=int(ocap_filename[:17].replace("_", ""))
             ),
             players=[OcapPlayerForm(
                 game_id=p.id,

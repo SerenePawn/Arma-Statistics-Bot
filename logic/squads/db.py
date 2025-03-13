@@ -50,6 +50,46 @@ async def get_by_chat(conn: Connection, chat_id: int, chat_thread_id: int | None
     return model
 
 
+async def get_by_tag(conn: Connection, clan_tag: str) -> Squad | None:
+    result_found_tags = await conn.execute_fetchall(
+        f"""
+            WITH RECURSIVE split(value, str) AS (
+                SELECT NULL, (select group_concat(tags) FROM squads WHERE tags LIKE '%' || ? || '%') || ','
+                UNION ALL
+                SELECT
+                    SUBSTR(s.str, 0, INSTR(s.str, ',')),
+                    SUBSTR(s.str, INSTR(s.str, ',')+1)
+                FROM split s
+                WHERE s.str != ''
+            ) 
+            SELECT value AS tag
+            FROM split 
+            WHERE value IS NOT NULL
+                AND TRIM(value, '[]-=+*.') LIKE ?;
+        """,
+        parameters=[clan_tag, clan_tag]
+    )
+    found_tags = [i["tag"] for i in result_found_tags]
+    if not found_tags:
+        return None
+    found_tag, *_ = found_tags
+
+    result_squad = await conn.execute_fetchall(
+        f"""
+            SELECT *
+            FROM squads
+            WHERE tags LIKE '%' || ? || '%'
+        """,
+        parameters=[found_tag]
+    )
+    if not result_squad:
+        return None
+    result_squad, *_ = result_squad
+    if not result_squad["telegram_chat_id"]:
+        return None
+    return record_to_model(Squad, result_squad)
+
+
 async def update(conn: Connection, squad_id: int, **data) -> Squad:
     result = await db.update(
         conn,

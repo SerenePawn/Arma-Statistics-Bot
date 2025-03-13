@@ -1,4 +1,4 @@
-import logging
+from loguru import logger
 import traceback
 from datetime import datetime, timedelta, time
 from typing import Callable
@@ -21,7 +21,7 @@ def time_to_sleep(hour: int, minute: int = 0, second: int = 0) -> float:
 
 async def run_timer(state: AppState, wait_time: time | int | float, coro: Callable, *coro_args, **coro_kwargs):
     """
-
+    Асинхронно-безопасный таймер. Но будет ебашить, если уже непосредственно корутина пущена.
     :param state:
     :param coro:
     :param wait_time: time to run at defined time. int | float to run with seconds interval.
@@ -34,12 +34,17 @@ async def run_timer(state: AppState, wait_time: time | int | float, coro: Callab
             delay = wait_time
 
         state.shutdown_event.wait(delay)
+        if state.shutdown_event.is_set():
+            break
 
         try:
             await coro(state, *coro_args, **coro_kwargs)
         except ValueError as exc:
-            logging.error(f"DB connection lost: [state={state}] {exc}")
+            logger.error(f"DB connection lost: [state={state}] {exc}")
+            break
         except TelegramBadRequest as exc:
-            logging.error(f"TG Request failed: [args={coro_args}, kwargs={coro_kwargs}] {exc}")
+            logger.error(f"TG Request failed: [args={coro_args}, kwargs={coro_kwargs}] {exc}")
+            break
         except Exception:
-            logging.error(f"Unexpected exception: [args={coro_args}, kwargs={coro_kwargs}] {traceback.format_exc()}")
+            logger.error(f"Unexpected exception: [args={coro_args}, kwargs={coro_kwargs}] {traceback.format_exc()}")
+            break

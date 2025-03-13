@@ -138,3 +138,13 @@ async def update(conn: Connection, squad_id: int, **data) -> Attendance:
     )
     await conn.commit()
     return record_to_model(Attendance, result)
+
+
+async def delete(conn: Connection, attendance_id: int) -> Attendance:
+    result = await db.delete(
+        conn,
+        pk=attendance_id,
+        table="attendances",
+    )
+    await conn.commit()
+    return record_to_model(Attendance, result)

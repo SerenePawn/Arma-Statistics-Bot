@@ -26,6 +26,7 @@ CREATE TABLE "squads" (
 CREATE TABLE "players" (
     "id" INTEGER PRIMARY KEY,
     "telegram_id" INTEGER NOT NULL,
+    "telegram_tag" VARCHAR(200) NOT NULL,
     "squad_id" INT NOT NULL REFERENCES squads(id),
     "name" varchar(50) NOT NULL,
     "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -62,6 +63,7 @@ CREATE TABLE "schedules" (
 CREATE TABLE "ocaps" (
     "id" INTEGER PRIMARY KEY,
     "filename" TEXT NOT NULL UNIQUE,
+    "date_number" INTEGER NOT NULL,
     "length_seconds" INTEGER NOT NULL,  -- Длина миски без учета фриз-тайма
     "game_type" VARCHAR(5) NOT NULL,
     "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
