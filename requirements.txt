@@ -1,0 +1,9 @@
+aiosqlite
+aiogram
+aiosignal
+async-timeout
+asyncpg
+databases
+greenlet
+pydantic
+pytz
