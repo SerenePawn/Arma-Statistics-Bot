@@ -11,13 +11,30 @@ from pydantic import BaseModel, Field, model_validator, field_validator
 
 from core.app_state import AppState
 
-WEAPON_RENAME = {
+WEAPON_RENAMED = {
     "РПГ-26 (отстрелянный)": "РПГ-26",
+    "РШГ-2 (отстрелянный)": "РШГ-2",
     "M136 HEDP (used)": "M136 (HEDP)",
+    "M136 HEAT (used)": "M136 (HEAT)",
+    "M136 HP (used)": "M136 (HP)",
+    "M72A7 (used)": "M72A7",
+    "NLAW (Used)": "NLAW",
+    "Panzerfaust 3 (Used)": "Panzerfaust 3",
     "[CUP] Mk16 SCAR-L STD (Рукоятка) [Black]": "[CUP] Mk16 SCAR-L",
+    "[CUP] Mk16 SCAR-L CQC (EGLM) [Woodland]": "[CUP] Mk16 SCAR-L",
+    "[CUP] Mk16 SCAR-L STD (EGLM) [Black]": "[CUP] Mk16 SCAR-L",
+    "[CUP] Mk16 SCAR-L STD (EGLM) [Desert]": "[CUP] Mk16 SCAR-L",
     "[CUP] Mk16 SCAR-L STD [Desert]": "[CUP] Mk16 SCAR-L",
     "SR-25 Carbine [Woodland]": "SR-25 Carbine",
-    "M72A7 (used)": "M72A7",
+    "M249 PIP Long (RIS/Lightweight)": "M249 PIP Long",
+    "M249 PIP Short (RIS/SAVIT stock)": "M249 PIP Short",
+    "M4A1 Block II (AFG/SOPMOD Stock)": "M4A1 Block II",
+    "M4A1 Block II Woodland (SOPMOD stock)": "M4A1 Block II",
+    "[Alpha AK] АК-104 (Zenitco) [Woodland]": "АК-74М",
+    "[Alpha AK] АК-105 (Zenitco) [Woodland]": "АК-74М",
+    "[Alpha AK] АК-74М (Zenitco) [Black]": "АК-74М",
+    "[Alpha AK] АК-74М (Zenitco) [Winter]": "АК-74М",
+    "[Tier 1] MCX Virtus (.300BLK)[Black]": "MCX Virtus",
 }
 
 
@@ -229,7 +246,7 @@ class KillEvent(BaseModel):
     @field_validator("weapon", mode="after")
     @classmethod
     def correct_weapons_rename(cls, v: str) -> str:
-        result = WEAPON_RENAME.get(v, v)
+        result = WEAPON_RENAMED.get(v, v)
         return result.strip()
     @classmethod
     def map_from_ocap(
