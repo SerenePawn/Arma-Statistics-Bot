@@ -220,6 +220,7 @@ logs/
 
 # project specific settings
 ../.idea/
+.idea/
 /compose-dev_fc.yaml
 tmp/
 TEST.py
