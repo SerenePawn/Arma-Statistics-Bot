@@ -13,8 +13,11 @@ class BotSettings(BaseModel):
     PAGE_LIMIT: int = 10
     BUTTONS_PAGE_LIMIT: int = 5
 
-    OCAPS_PATH: Path = "./"
+    OCAPS_PATH: Path = "./ocaps"
     OCAPS_PLY_VEHICLES_SPREAD_COORDS: int
+
+    LOGS_PATH: Path = "./logs"
+
 
     @staticmethod
     def from_file(path: str | None = None) -> "BotSettings":
