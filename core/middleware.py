@@ -37,13 +37,15 @@ class HandledLoggerMiddleware(BaseMiddleware):
         try:
             return await handler(event, data)
         except Exception as exc:
+            logger.exception(
+                log_text
+            )
             await app_state.bot.send_message(
                 app_state.config.DEV_TG_ID,
                 **as_list(
                     as_line(
                         "(", Code(str(AppRequest.id())), ")",
-                        " [tg_id=", Code(str(tg_id)), ":",
-                        "username=", Code(f"@{username}"), "]",
+                        " [tg_id=", Code(str(tg_id)), ":", "username=", Code(f"@{username}"), "]",
                     ),
                     as_line(
                         log_data
@@ -51,7 +53,4 @@ class HandledLoggerMiddleware(BaseMiddleware):
                     f"Exception: ", Pre(traceback.format_exc()),
                     sep=""
                 ).as_kwargs()
-            )
-            logger.exception(
-                log_text
             )

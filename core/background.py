@@ -45,6 +45,8 @@ async def send_attendances(app_state: AppState, loop: AbstractEventLoop):
                 schedule = await schedules_db.get_schedule_by_player(app_state.conn, player.id, schedule_preset.id)
 
                 if not (attendance or schedule):
+                    logger.debug(f"[ATD] Sending [{schedule_preset.game_name}] "
+                                 f"to [{player.name}] (tg_id={player.telegram_id})")
                     futures.append(asyncio.run_coroutine_threadsafe(
                         app_state.bot.send_message(
                             player.telegram_id,
@@ -54,62 +56,12 @@ async def send_attendances(app_state: AppState, loop: AbstractEventLoop):
                         loop
                     ))
 
+    logger.debug(f"[ATD] Sending {len(futures)}")
+    results = []
     for i in futures:
         with suppress(TelegramForbiddenError):
-            i.result()
-
-
-async def old__parse_ocaps(app_state: AppState, *args, **kwargs):
-    logger.info("Checking for new OCAPs")
-    ocaps_path = app_state.config.OCAPS_PATH
-    ocaps = os.listdir(ocaps_path)
-    ocaps_filenames = [i.filename for i in await kill_logs_db.get_ocaps_list(app_state.conn)]
-    ocaps_to_parse = [i for i in ocaps if i not in ocaps_filenames]
-    if ocaps_to_parse:
-        logger.info(f"Found new OCAPs ({len(ocaps_to_parse)}): {", ".join(ocaps_to_parse)}! "
-                    f"Please, do not kill bot process.")
-    else:
-        return
-
-    start_time = time()
-    processes = []
-    for ocap_filename in ocaps_to_parse:
-        logger.info(f"Parsing OCAP: '{ocap_filename}'")
-        start_iter_time = time()
-        ocap = OCAP.from_file(ocaps_path / ocap_filename)
-        await kill_logs_db.create_ocap(
-            app_state.conn,
-            OcapForm(
-                ocap=OcapDBForm(
-                    filename=ocap_filename,
-                    length_seconds=ocap.max_frame,
-                    game_type=ocap.game_type,
-                ),
-                players=[OcapPlayerForm(
-                    game_id=p.id,
-                    name=p.name,
-                    group_name=p.group,
-                    side=p.side,
-                    dead_at_frame=len(p.positions),
-                ) for p in ocap.players.values()],
-                kills=[OcapKillForm(
-                    killer_id=e.killer.id,
-                    killed_id=e.killed.id if isinstance(e.killed, Player) else None,
-                    killer_vehicle=e.killer_vehicle.name if e.killer_vehicle else None,
-                    killed_vehicle=e.killed.name if isinstance(e.killed, Vehicle) else None,
-                    team_kill=(
-                            (e.killer.side if e.killer else None) == e.killed.side
-                    ) if isinstance(e.killed, Player) else False,
-                    frame=e.frame,
-                    weapon=e.weapon,
-                    weapon_is_vehicle=bool(e.killer_vehicle),
-                    distance=e.distance,
-                ) for e in ocap.events],
-            )
-        )
-        logger.info(f"Parsed OCAP: '{ocap_filename}' ({round(time() - start_iter_time, 2)}s)")
-
-    logger.info(f"Parsing OCAPs DONE! Total: ({round(time() - start_time, 2)}s)")
+            results.append(i.result())
+    logger.debug(f"[ATD] Sent {len(results)}")
 
 
 async def parse_ocaps(app_state: AppState, *args, **kwargs):
@@ -119,8 +71,7 @@ async def parse_ocaps(app_state: AppState, *args, **kwargs):
     ocaps_filenames = [i.filename for i in await kill_logs_db.get_ocaps_list(app_state.conn)]
     ocaps_to_parse = [i for i in ocaps if i not in ocaps_filenames]
     if ocaps_to_parse:
-        logger.info(f"Found new OCAPs ({len(ocaps_to_parse)}): {", ".join(ocaps_to_parse)}! "
-                    f"Please, do not kill bot process.")
+        logger.info(f"Found new OCAPs ({len(ocaps_to_parse)}): {", ".join(ocaps_to_parse)}!")
     else:
         return
 

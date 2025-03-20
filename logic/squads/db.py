@@ -9,7 +9,7 @@ async def create(conn: Connection, form: SquadForm) -> int:
     result = await db.create(
         conn,
         table="squads",
-        data=form.model_dump(),
+        data=form.model_dump(exclude_none=True),
     )
     await conn.commit()
     return result["last_insert_rowid"]
@@ -42,7 +42,20 @@ async def get_by_chat(conn: Connection, chat_id: int, chat_thread_id: int | None
         conn,
         "squads",
         "telegram_chat_id = ? AND telegram_chat_thread_id = ?",
-        [chat_id, chat_thread_id],
+        [chat_id, chat_thread_id or ""],
+    )
+    if not result:
+        return None
+    model, *_ = record_to_model_list(Squad, result)
+    return model
+
+
+async def get_by_chat_thread_any(conn: Connection, chat_id: int) -> Squad | None:
+    result = await db.get_by_where(
+        conn,
+        "squads",
+        "telegram_chat_id = ?",
+        [chat_id],
     )
     if not result:
         return None

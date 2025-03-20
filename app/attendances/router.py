@@ -47,10 +47,11 @@ async def attendance_will_attend(callback: CallbackQuery):
     attendance = await attendances_db.get_attendance(app_state.conn, schedule_preset_id, player_id)
     schedule = await schedules_db.get_schedule_by_player(app_state.conn, player_id, schedule_preset_id)
 
-    await callback.message.edit_text(
-        **get_attendance_text(schedule_preset, schedule, attendance).as_kwargs(),
-        reply_markup=get_attendance_keyboard(schedule_preset.id, player_id)
-    )
+    with suppress(TelegramBadRequest):
+        await callback.message.edit_text(
+            **get_attendance_text(schedule_preset, schedule, attendance).as_kwargs(),
+            reply_markup=get_attendance_keyboard(schedule_preset.id, player_id)
+        )
 
 
 @router.callback_query(F.data.startswith("attendance_doubt"))
@@ -133,10 +134,11 @@ async def fsm_attendance_reason(message: types.Message, state: FSMContext):
     attendance = await attendances_db.get_attendance(app_state.conn, schedule_preset_id, player_id)
     schedule = await schedules_db.get_schedule_by_player(app_state.conn, player_id, schedule_preset_id)
 
-    await data["attendance_message"].edit_text(
-        **get_attendance_text(schedule_preset, schedule, attendance).as_kwargs(),
-        reply_markup=get_attendance_keyboard(schedule_preset.id, player_id)
-    )
+    with suppress(TelegramBadRequest):
+        await data["attendance_message"].edit_text(
+            **get_attendance_text(schedule_preset, schedule, attendance).as_kwargs(),
+            reply_markup=get_attendance_keyboard(schedule_preset.id, player_id)
+        )
     await state.clear()
 
 
@@ -168,10 +170,11 @@ async def attendance_reason_skip(callback: CallbackQuery, state: FSMContext):
     attendance = await attendances_db.get_attendance(app_state.conn, schedule_preset_id, player_id)
     schedule = await schedules_db.get_schedule_by_player(app_state.conn, player_id, schedule_preset_id)
 
-    await data["attendance_message"].edit_text(
-        **get_attendance_text(schedule_preset, schedule, attendance).as_kwargs(),
-        reply_markup=get_attendance_keyboard(schedule_preset.id, player_id)
-    )
+    with suppress(TelegramBadRequest):
+        await data["attendance_message"].edit_text(
+            **get_attendance_text(schedule_preset, schedule, attendance).as_kwargs(),
+            reply_markup=get_attendance_keyboard(schedule_preset.id, player_id)
+        )
     await state.clear()
 
 
@@ -190,10 +193,11 @@ async def attendance_empty(callback: CallbackQuery):
     attendance = None
     schedule = await schedules_db.get_schedule_by_player(app_state.conn, player_id, schedule_preset_id)
 
-    await callback.message.edit_text(
-        **get_attendance_text(schedule_preset, schedule, attendance).as_kwargs(),
-        reply_markup=get_attendance_keyboard(schedule_preset.id, player_id)
-    )
+    with suppress(TelegramBadRequest):
+        await callback.message.edit_text(
+            **get_attendance_text(schedule_preset, schedule, attendance).as_kwargs(),
+            reply_markup=get_attendance_keyboard(schedule_preset.id, player_id)
+        )
 
 
 @router.callback_query(F.data == "attendance_reason_cancel")

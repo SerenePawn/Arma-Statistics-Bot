@@ -9,7 +9,7 @@ from logic.squads import db as squads_db
 
 NOT_IN_SQUAD_MSG = (
     "Ваш аккаунт не привязан ни к одному отряду.\n\n"
-    "Чтобы привязать аккаунт, напишите в чате отряда `/reg <ник>` , "
+    "Чтобы привязать аккаунт, напишите в любом чате группы отряда `/reg <ник>` , "
     "например, для ника `[TAG]Player` будет правильным: `/reg Player`."
 )
 
@@ -21,6 +21,13 @@ NO_SCHEDULES = (
 async def set_user_private_attendance(from_user: User):
     app_state = AppState()
     player = await players_db.get_by_tg_id(app_state.conn, from_user.id)
+    if not player:
+        await app_state.bot.send_message(
+            player.telegram_id,
+            "Вы не состоите ни в каком отряде. "
+            "Для начала, напишите в любой чат группы отряда `/reg <свой никнейм без тегов>`",
+        )
+        return
     squad = await squads_db.get(app_state.conn, player.squad_id)
     attendances_to_remind = await schedules_db.get_presets(app_state.conn, squad.id, all_week=True)
     if not attendances_to_remind:

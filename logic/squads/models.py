@@ -5,7 +5,7 @@ from pydantic import BaseModel, field_validator
 
 class SquadForm(BaseModel):
     telegram_chat_id: int
-    telegram_chat_thread_id: int
+    telegram_chat_thread_id: int | None = None
     ui_message_id: int | None = None
     ui_message_hash: str | None = None
     name: str

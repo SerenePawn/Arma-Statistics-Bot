@@ -14,8 +14,8 @@ CREATE TABLE "bug_reports" (
 
 CREATE TABLE "squads" (
     "id" INTEGER PRIMARY KEY,
-    "telegram_chat_id" varchar(20) NOT NULL,
-    "telegram_chat_thread_id" varchar(20) NOT NULL DEFAULT '',
+    "telegram_chat_id" VARCHAR(20) NOT NULL,
+    "telegram_chat_thread_id" VARCHAR(20) NOT NULL DEFAULT '',
     "ui_message_id" INTEGER,
     "ui_message_hash" VARCHAR(31),
     "name" varchar(50) NOT NULL,

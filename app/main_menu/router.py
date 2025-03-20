@@ -285,7 +285,7 @@ async def player_register(message: types.Message):
     name: str
     new_name = ""
     cmd, name, *_ = message.text.split(" ")
-    squad = await squads_db.get_by_chat(app_state.conn, message.chat.id, message.message_thread_id)
+    squad = await squads_db.get_by_chat_thread_any(app_state.conn, message.chat.id)
     for tag in squad.tags:
         new_name = name.replace(tag, "")
         if new_name != name:

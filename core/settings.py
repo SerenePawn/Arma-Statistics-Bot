@@ -16,6 +16,7 @@ class BotSettings(BaseModel):
     OCAPS_PATH: Path = "./ocaps"
     OCAPS_PLY_VEHICLES_SPREAD_COORDS: int
 
+    SEND_LOGS_TO_DEV: bool = True
     LOGS_PATH: Path = "./logs"
 
 

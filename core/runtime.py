@@ -45,7 +45,7 @@ async def startup_app(params: list[str]):
 
 
 async def shutdown_app():
-    logger.info("Shutdown started")
+    logger.info("Shutdown...")
     state = AppState()
     state.shutdown_event.set()
 
