@@ -48,3 +48,28 @@ async def run_timer(state: AppState, wait_time: time | int | float, coro: Callab
         except Exception:
             logger.error(f"Unexpected exception: [args={coro_args}, kwargs={coro_kwargs}] {traceback.format_exc()}")
             break
+
+
+async def run_timer_schedule(state: AppState, wait_time: time | int | float, func: Callable):
+    """
+    Асинхронно-безопасный таймер. Но будет ебашить, если уже непосредственно корутина пущена.
+    :param state:
+    :param coro:
+    :param wait_time: time to run at defined time. int | float to run with seconds interval.
+    :return:
+    """
+    while not state.shutdown_event.is_set():
+        if isinstance(wait_time, time):
+            delay = time_to_sleep(wait_time.hour, wait_time.minute, wait_time.second)
+        else:
+            delay = wait_time
+
+        state.shutdown_event.wait(delay)
+        if state.shutdown_event.is_set():
+            break
+
+        try:
+            func()
+        except Exception:
+            logger.error(f"Unexpected exception: {traceback.format_exc()}")
+            break
