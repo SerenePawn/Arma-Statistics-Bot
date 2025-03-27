@@ -136,7 +136,7 @@ async def main_menu_attendance_callback(callback: CallbackQuery):
                             Bold(f"({len(i[attend_status])}) {ATTENDANCE_STR_MAP[attend_status]}:"),
                             *[
                                 f"{j.player_name} ({j.comment})".strip() if j.comment else j.player_name
-                                for j in i[attend_status]
+                                for j in sorted(i[attend_status], key=lambda x: x.player_name)
                             ],
                             marker=f"{ATTENDANCE_EMOJI[attend_status]} "
                         )
