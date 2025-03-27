@@ -34,7 +34,7 @@ async def send_attendances(app_state: AppState, loop: AbstractEventLoop):
     for attendance in attendances_to_remind:
         squads_attendances_today[attendance.squad_id].append(attendance)
 
-    futures = []
+    tasks = []
 
     for squad_id, attendances in squads_attendances_today.items():
         players = await players_db.get_by_squad_id(app_state.conn, squad_id)
@@ -47,20 +47,20 @@ async def send_attendances(app_state: AppState, loop: AbstractEventLoop):
                 if not (attendance or schedule):
                     logger.debug(f"[ATD] Sending [{schedule_preset.game_name}] "
                                  f"to [{player.name}] (tg_id={player.telegram_id})")
-                    futures.append(asyncio.run_coroutine_threadsafe(
+                    tasks.append(
                         app_state.bot.send_message(
                             player.telegram_id,
                             **get_attendance_text(schedule_preset, schedule, attendance).as_kwargs(),
                             reply_markup=get_attendance_keyboard(schedule_preset.id, player.id)
-                        ),
-                        loop
-                    ))
+                        )
+                    )
 
-    logger.debug(f"[ATD] Sending {len(futures)}")
+    logger.debug(f"[ATD] Sending {len(tasks)}")
     results = []
-    for i in futures:
+    for i in tasks:
         with suppress(TelegramForbiddenError):
-            results.append(i.result())
+            r = asyncio.run_coroutine_threadsafe(i, loop)
+            results.append(r)
     logger.debug(f"[ATD] Sent {len(results)}")
 
 
