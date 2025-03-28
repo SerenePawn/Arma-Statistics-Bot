@@ -44,7 +44,7 @@ async def send_attendances(app_state: AppState, loop: AbstractEventLoop):
                 attendance = await attendances_db.get_attendance(app_state.conn, schedule_preset.id, player.id)
                 schedule = await schedules_db.get_schedule_by_player(app_state.conn, player.id, schedule_preset.id)
 
-                if not (attendance or schedule):
+                if not (attendance or schedule) or (schedule and schedule.will_attend_default is True):
                     logger.debug(f"[ATD] Sending [{schedule_preset.game_name}] "
                                  f"to [{player.name}] (tg_id={player.telegram_id})")
                     tasks.append(

@@ -99,7 +99,6 @@ async def main_menu_attendance_callback(callback: CallbackQuery):
         )
         return
 
-    # TODO получать с учетом расписания игроков
     attendances = await attendances_db.get_list_by_squad_id(app_state.conn, squad.id)
     if not attendances:
         msg_text = "Игр пока не добавили в расписание отряда, либо пока никто не отметился."
