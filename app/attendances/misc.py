@@ -25,14 +25,15 @@ def get_attendance_keyboard(schedule_preset_id: int, player_id: int) -> InlineKe
                 callback_data=f"attendance_will_not_attend:{schedule_preset_id}:{player_id}"
             )
         ],
+        # Убрал, чтобы не вводить в заблуждение.
+        # [
+        #     InlineKeyboardButton(
+        #         text="🔵 Пока неизвестно",
+        #         callback_data=f"attendance_empty:{schedule_preset_id}:{player_id}"
+        #     ),
+        # ],
         [
-            InlineKeyboardButton(
-                text="🔵 Пока неизвестно",
-                callback_data=f"attendance_empty:{schedule_preset_id}:{player_id}"
-            ),
-        ],
-        [
-            InlineKeyboardButton(text="Отмена", callback_data="attendance_cancel")
+            InlineKeyboardButton(text="Закрыть", callback_data="attendance_cancel")
         ],
     ])
 

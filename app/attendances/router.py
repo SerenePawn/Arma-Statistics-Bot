@@ -59,6 +59,9 @@ async def attendance_doubt(callback: CallbackQuery, state: FSMContext):
     app_state = AppState()
     cmd, schedule_preset_id, player_id = callback.data.split(":")
 
+    if await state.get_data():
+        await callback.answer("Вы уже прожали на кнопку расписания. Заполните сначала ответ там.")
+        return
     await state.set_state(AttendanceFSM.write_reason)
     write_reason_message = await app_state.bot.send_message(
         callback.from_user.id,
@@ -84,6 +87,9 @@ async def attendance_will_not_attend(callback: CallbackQuery, state: FSMContext)
     app_state = AppState()
     cmd, schedule_preset_id, player_id = callback.data.split(":")
 
+    if await state.get_data():
+        await callback.answer("Вы уже прожали на кнопку расписания. Заполните сначала ответ там.")
+        return
     await state.set_state(AttendanceFSM.write_reason)
     write_reason_message = await app_state.bot.send_message(
         callback.from_user.id,
@@ -108,11 +114,15 @@ async def attendance_will_not_attend(callback: CallbackQuery, state: FSMContext)
 async def fsm_attendance_reason(message: types.Message, state: FSMContext):
     app_state = AppState()
     data = await state.get_data()
-    schedule_preset_id = data["schedule_preset_id"]
-    player_id = data["player_id"]
-    await data["write_reason_message"].delete()
+    schedule_preset_id = data.get("schedule_preset_id")
+    player_id = data.get("player_id")
     with suppress(TelegramBadRequest):
         await message.delete()
+
+    if not schedule_preset_id or not player_id:
+        return
+
+    await data["write_reason_message"].delete()
 
     schedule_preset = await schedules_db.get_preset(app_state.conn, schedule_preset_id)
     attendance = await attendances_db.get_attendance(app_state.conn, schedule_preset_id, player_id)
@@ -146,9 +156,12 @@ async def fsm_attendance_reason(message: types.Message, state: FSMContext):
 async def attendance_reason_skip(callback: CallbackQuery, state: FSMContext):
     app_state = AppState()
     data = await state.get_data()
-    schedule_preset_id = data["schedule_preset_id"]
-    player_id = data["player_id"]
+    schedule_preset_id = data.get("schedule_preset_id")
+    player_id = data.get("player_id")
     await callback.message.delete()
+
+    if not schedule_preset_id or not player_id:
+        return
 
     schedule_preset = await schedules_db.get_preset(app_state.conn, schedule_preset_id)
     attendance = await attendances_db.get_attendance(app_state.conn, schedule_preset_id, player_id)
