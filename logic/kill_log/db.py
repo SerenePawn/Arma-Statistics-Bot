@@ -168,7 +168,7 @@ async def get_ocap_detail(conn: Connection, game_type: GameType, clan_tag: str, 
         ORDER BY opk.name DESC;
     """)  # TODO: убрать из ф-строки инжекты клан-тега. Меня просто так заебали эти скрипты, что ну не могу уже..
     if not result:
-        return None
+        result = []
 
     # Запрос киллов игроков, найденных выше  # TODO: stmt
     killed_result = await conn.execute_fetchall(f"""
@@ -190,7 +190,7 @@ async def get_ocap_detail(conn: Connection, game_type: GameType, clan_tag: str, 
           and ({" OR ".join([f"victim_name LIKE '{i["tag"]}%'" for i in result_found_tags])});
     """)  # TODO: убрать из ф-строки инжекты клан-тега. Меня просто так заебали эти скрипты, что ну не могу уже..
     if not killed_result:
-        return None
+        killed_result = []
     players_killed = {i["victim_name"]: i["name"] for i in killed_result}
 
     players = {}
