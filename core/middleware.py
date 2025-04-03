@@ -45,7 +45,7 @@ class HandledLoggerMiddleware(BaseMiddleware):
                 **as_list(
                     as_line(
                         "(", Code(str(AppRequest.id())), ")",
-                        " [tg_id=", Code(str(tg_id)), ":", "username=", Code(f"@{username}"), "]",
+                        " [tg_id=", Code(str(tg_id)), ":", "username=", f"@{username}", "]",
                     ),
                     as_line(
                         log_data

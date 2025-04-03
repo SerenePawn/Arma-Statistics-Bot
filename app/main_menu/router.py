@@ -300,7 +300,7 @@ async def player_register(message: types.Message):
         )
     )
 
-    with suppress(TelegramBadRequest):
+    with suppress(TelegramForbiddenError):
         await app_state.bot.send_message(
             chat_id=message.from_user.id,
             text=f"Вы были зарегистрированы как `{name}` в отряде {squad.name}.\n\n"
