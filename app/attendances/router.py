@@ -5,6 +5,7 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from loguru import logger
 
 from app.attendances.fsm import AttendanceFSM
 from app.attendances.misc import get_attendance_text, get_attendance_keyboard
@@ -220,5 +221,16 @@ async def attendance_reason_cancel(callback: CallbackQuery, state: FSMContext):
 
 
 @router.callback_query(F.data.startswith("attendance_cancel"))
-async def attendance_empty(callback: CallbackQuery):
-    await callback.message.delete()
+async def attendance_cancel(callback: CallbackQuery):
+    try:
+        await callback.message.delete()
+    except TelegramBadRequest as exc:
+        logger.warning(
+            f"Cancel message failed: "
+            f"msg_id={callback.message.message_id} | thread_id={callback.message.message_thread_id} | "
+            f"username=@{callback.from_user.username} | {exc=}"
+        )
+        await callback.answer(
+            "Бот по какой-то причине не может удалить сообщение. "
+            "Удалите сами, или помогите найти причину бага"
+        )
