@@ -8,11 +8,13 @@ from multiprocessing import Process
 from pathlib import Path
 from time import time
 
+import requests
 from aiogram.exceptions import TelegramForbiddenError
 from loguru import logger
 
 from app.attendances.misc import get_attendance_keyboard, get_attendance_text
 from core.app_state import AppState
+from core.consts import OCAPS_URL, OCAP_URL
 from core.db.db import init
 from logic.attendances import db as attendances_db
 from logic.kill_log import db as kill_logs_db
@@ -64,8 +66,27 @@ async def send_attendances(app_state: AppState, loop: AbstractEventLoop):
     logger.debug(f"[ATD] Sent {len(results)}")
 
 
+async def download_ocaps(app_state: AppState) -> list[str]:
+    ocaps = os.listdir(app_state.config.OCAPS_PATH)
+    response = requests.get(OCAPS_URL)
+    downloaded_ocaps = [i for i in response.json() if i["filename"] not in ocaps]
+
+    for i in downloaded_ocaps:
+        response_ocap = requests.get(OCAP_URL % i["filename"])
+        with open(f"{app_state.config.OCAPS_PATH}/{i["filename"]}", "w", encoding="utf-8") as fd:
+            fd.write(response_ocap.text)
+
+    return downloaded_ocaps
+
+
 async def parse_ocaps(app_state: AppState, *args, **kwargs):
     logger.info("Checking for new OCAPs")
+
+    # TODO: Пока не на сервере с окапами, будет качать окапы. Удалить после размещения на сервере с окапами.
+    downloaded = await download_ocaps(app_state)
+    if not downloaded:
+        return
+
     ocaps_path = app_state.config.OCAPS_PATH
     ocaps = os.listdir(ocaps_path)
     ocaps_filenames = [i.filename for i in await kill_logs_db.get_ocaps_list(app_state.conn)]
