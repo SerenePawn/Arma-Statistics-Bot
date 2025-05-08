@@ -226,3 +226,4 @@ tmp/
 TEST*
 config.ini
 /db/arma_bot.db
+*.bat
