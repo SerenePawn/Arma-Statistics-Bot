@@ -223,8 +223,6 @@ logs/
 .idea/
 /compose-dev_fc.yaml
 tmp/
-TEST.py
-TEST_DOWNLOAD.py
-TEST_MIGRATION.sql
+TEST*
 config.ini
 /db/arma_bot.db
