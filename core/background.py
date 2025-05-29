@@ -48,7 +48,7 @@ async def send_attendances(app_state: AppState, loop: AbstractEventLoop):
                 schedule = await schedules_db.get_schedule_by_player(app_state.conn, player.id, schedule_preset.id)
 
                 if not (attendance or schedule) or (
-                        (schedule and schedule.will_attend_default is True)
+                        (not schedule or schedule.will_attend_default is True)
                         and (
                             not attendance
                             or attendance.attend_status in {AttendStatus.WILL_ATTEND, AttendStatus.DOUBTS}
