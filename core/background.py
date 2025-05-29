@@ -17,6 +17,7 @@ from core.app_state import AppState
 from core.consts import OCAPS_URL, OCAP_URL
 from core.db.db import init
 from logic.attendances import db as attendances_db
+from logic.attendances.enums import AttendStatus
 from logic.kill_log import db as kill_logs_db
 from logic.kill_log.misc import OCAP, Player, Vehicle
 from logic.kill_log.models import OcapForm, OcapDBForm, OcapPlayerForm, OcapKillForm
@@ -46,7 +47,10 @@ async def send_attendances(app_state: AppState, loop: AbstractEventLoop):
                 attendance = await attendances_db.get_attendance(app_state.conn, schedule_preset.id, player.id)
                 schedule = await schedules_db.get_schedule_by_player(app_state.conn, player.id, schedule_preset.id)
 
-                if not (attendance or schedule) or (schedule and schedule.will_attend_default is True):
+                if not (attendance or schedule) or (
+                        (schedule and schedule.will_attend_default is True)
+                        or (attendance and attendance.attend_status in {AttendStatus.WILL_ATTEND, AttendStatus.DOUBTS})
+                ):
                     logger.debug(f"[ATD] Sending [{schedule_preset.game_name}] "
                                  f"to [{player.name}] (tg_id={player.telegram_id})")
                     tasks.append(
