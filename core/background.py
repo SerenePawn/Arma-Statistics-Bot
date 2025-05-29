@@ -49,7 +49,10 @@ async def send_attendances(app_state: AppState, loop: AbstractEventLoop):
 
                 if not (attendance or schedule) or (
                         (schedule and schedule.will_attend_default is True)
-                        or (attendance and attendance.attend_status in {AttendStatus.WILL_ATTEND, AttendStatus.DOUBTS})
+                        and (
+                            not attendance
+                            or attendance.attend_status in {AttendStatus.WILL_ATTEND, AttendStatus.DOUBTS}
+                        )
                 ):
                     logger.debug(f"[ATD] Sending [{schedule_preset.game_name}] "
                                  f"to [{player.name}] (tg_id={player.telegram_id})")
