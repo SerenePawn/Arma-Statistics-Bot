@@ -1,7 +1,7 @@
 import asyncio
 import os
 import sys
-from asyncio import AbstractEventLoop
+from asyncio import AbstractEventLoop, sleep
 from collections import defaultdict
 from contextlib import suppress
 from multiprocessing import Process
@@ -82,6 +82,7 @@ async def download_ocaps(app_state: AppState) -> list[str]:
         response_ocap = requests.get(OCAP_URL % i["filename"])
         with open(f"{app_state.config.OCAPS_PATH}/{i["filename"]}", "w", encoding="utf-8") as fd:
             fd.write(response_ocap.text)
+        await sleep(1)  # Костыль для 429
 
     return downloaded_ocaps
 
@@ -105,15 +106,19 @@ async def parse_ocaps(app_state: AppState, *args, **kwargs):
 
     start_time = time()
     processes = []
+    max_processes = 16
+    i = 0
 
     for ocap_filename in ocaps_to_parse:
         processes.append(
             Process(target=run_coro, args=(__parse_ocap, ocaps_path, ocap_filename))
         )
-    for p in processes:
-        p.start()
-    for p in processes:
-        p.join(timeout=30)
+
+    for i in range((len(processes) // max_processes) + 1):
+        for p in processes[i * max_processes: (i + 1) * max_processes]:
+            p.start()
+        for p in processes[i * max_processes: (i + 1) * max_processes]:
+            p.join(timeout=30)
 
     logger.info(f"Parsing OCAPs DONE! Total: ({round(time() - start_time, 2)}s)")
 

@@ -1,10 +1,11 @@
 import json
 import threading
 from collections import defaultdict
+from contextlib import suppress
 from datetime import datetime, time
 from enum import StrEnum
 from pathlib import Path
-from queue import Queue
+from queue import Queue, Empty
 from typing import Any
 
 from pydantic import BaseModel, Field, model_validator, field_validator
@@ -39,9 +40,11 @@ WEAPON_RENAMED = {
 
 
 class GameType(StrEnum):
+    LTVT = "ltvt"
     TVT1 = "tvt1"
     TVT2 = "tvt2"
     IF = "if"
+    UNKNOWN = "unknown"
 
 
 class EntityType(StrEnum):
@@ -60,6 +63,7 @@ class VehicleType(StrEnum):
     TANK = "tank"
     STATIC_MORTAR = "static-mortar"
     STATIC_WEAPON = "static-weapon"
+    UNKNOWN = "unknown"
 
 
 class EventType(StrEnum):
@@ -261,7 +265,7 @@ class KillEvent(BaseModel):
                 event_type=event.event_type,
                 killed=(players | vehicles)[event.killed],
                 killer=players[event.frag.killer],
-                weapon=event.frag.weapon,
+                weapon=event.frag.weapon or "unknown",
                 distance=event.distance,
             ) for event in raw_kills
             if (players | vehicles).get(event.killed) and players.get(event.frag.killer)
@@ -294,10 +298,18 @@ class OCAP(BaseModel):
         vehicles_thread.join()
         events_thread.join()
 
-        threads_data = queue.get_nowait() | queue.get_nowait() | queue.get_nowait()
-        players = threads_data["players"]
-        vehicles = threads_data["vehicles"]
-        events = threads_data["events"]
+        thread_1, thread_2, thread_3 = {}, {}, {}
+        with suppress(Empty):
+            thread_1 = queue.get_nowait()
+        with suppress(Empty):
+            thread_2 = queue.get_nowait()
+        with suppress(Empty):
+            thread_3 = queue.get_nowait()
+
+        threads_data = thread_1 | thread_2 | thread_3
+        players = threads_data.get("players", {})
+        vehicles = threads_data.get("vehicles", {})
+        events = threads_data.get("events", {})
 
         events = KillEvent.map_from_ocap(players, vehicles, events)
 
@@ -374,7 +386,7 @@ def parse_player_vehicle_id(
 ) -> int | None:  # returns vehicle_id
     ply = ocap.players[player_id]
     spread = AppState().config.OCAPS_PLY_VEHICLES_SPREAD_COORDS
-    if frame > len(ply.positions):
+    if frame >= len(ply.positions):
         return None
 
     ply_pos = ply.positions[frame]
@@ -405,6 +417,9 @@ def get_game_type_from_file(path: Path) -> GameType | None:
     :param path:
     :return:
     """
+    if '_LTVT' in str(path).upper():
+        return GameType.LTVT
+    
     ocap_filename = path.name.rsplit("/")[-1]
     ocap_date = ocap_filename[:17]
     created_at = datetime.strptime(ocap_date, "%Y_%m_%d__%H_%M")
@@ -412,7 +427,7 @@ def get_game_type_from_file(path: Path) -> GameType | None:
     return get_game_type(created_at)
 
 
-def get_game_type(dt: datetime) -> GameType | None:
+def get_game_type(dt: datetime) -> GameType:
     """
     !HARDCODE!
     Пришлось накостылять. Данных об игре нигде не написано, более чем вероятно, даже внутри файловой структуры сервера.
@@ -439,3 +454,4 @@ def get_game_type(dt: datetime) -> GameType | None:
             return GameType.TVT2  # Если игры ТВТ2 кончились после полуночи в сб. И не позже 16:00.
         case 6:  # Вс, если ТВТ2 кончилось после полуночи
             return GameType.TVT2
+    return GameType.UNKNOWN
