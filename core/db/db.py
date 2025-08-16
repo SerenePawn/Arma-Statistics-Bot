@@ -46,7 +46,7 @@ async def migrate_up(config: BotSettings, **extra_kwargs: object):
 
         migrations = os.listdir(config.MIGRATIONS_PATH)
         for migration_filename in migrations:
-            num, _ = migration_filename.split("_")
+            num, *_ = migration_filename.split("_")
             if num not in nums_in_db:
                 with open(f"{config.MIGRATIONS_PATH}/{migration_filename}", "r") as fd:
                     try:

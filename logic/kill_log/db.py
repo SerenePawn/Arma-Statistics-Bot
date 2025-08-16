@@ -118,18 +118,19 @@ async def get_ocap_detail(conn: Connection, game_type: GameType, clan_tag: str, 
         )
     """
     with_stmt = f"""
-        {with_loa_stmt}, ply_groups AS (
-            SELECT op.group_name
+        {with_loa_stmt},
+        ply_data AS (
+            SELECT op.side, op.group_name
             FROM ocaps_players op
             WHERE ({" OR ".join(found_tags)})
                 AND ocap_id IN last_ocap_array
             GROUP BY op.group_name
+        ), ply_groups AS (
+            SELECT pd.group_name
+            FROM ply_data pd
         ), ply_sides AS (
-            SELECT op.side
-            FROM ocaps_players op
-            WHERE ({" OR ".join(found_tags)})
-                AND ocap_id IN last_ocap_array
-            GROUP BY op.group_name
+            SELECT pd.side
+            FROM ply_data pd
         )
     """
 
@@ -157,8 +158,8 @@ async def get_ocap_detail(conn: Connection, game_type: GameType, clan_tag: str, 
             ok.weapon_is_vehicle,
             ok.team_kill,
             ok.distance
-        FROM ocaps o
-            LEFT JOIN ocaps_kills ok ON ok.ocap_id = o.id
+        FROM ocaps_kills ok
+            LEFT JOIN ocaps o ON ok.ocap_id = o.id
             LEFT JOIN ocaps_players opk ON opk.ocap_id = o.id AND opk.game_id = ok.killer_id
             LEFT JOIN ocaps_players opv ON opv.ocap_id = o.id AND opv.game_id = ok.killed_id
         WHERE o.id IN last_ocap_array
