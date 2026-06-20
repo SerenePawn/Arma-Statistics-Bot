@@ -1,0 +1,1473 @@
+:root {
+    color-scheme: light dark;
+    --bg: var(--tg-theme-bg-color, #111827);
+    --text: var(--tg-theme-text-color, #f9fafb);
+    --hint: var(--tg-theme-hint-color, #9ca3af);
+    --card: var(--tg-theme-secondary-bg-color, #1f2937);
+    --button: var(--tg-theme-button-color, #2ea6ff);
+    --button-text: var(--tg-theme-button-text-color, #ffffff);
+    --danger: #ef4444;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+}
+
+.app {
+    width: min(760px, 100%);
+    margin: 0 auto;
+    padding: 20px 16px 40px;
+}
+
+h1,
+h2,
+h3,
+p {
+    margin-top: 0;
+}
+
+h1 {
+    margin-bottom: 0;
+    font-size: 28px;
+}
+
+h2 {
+    margin-bottom: 10px;
+    font-size: 20px;
+}
+
+h3 {
+    margin-bottom: 4px;
+    font-size: 17px;
+}
+
+.card,
+.status {
+    padding: 16px;
+    border-radius: 18px;
+    background: var(--card);
+    box-shadow: 0 12px 40px rgb(0 0 0 / 14%);
+    margin-bottom: 14px;
+}
+
+.status {
+    color: var(--hint);
+}
+
+.status p {
+    margin: 0;
+}
+
+.status-action {
+    margin-top: 12px;
+    width: 100%;
+}
+
+.create-squad-success {
+    display: grid;
+    gap: 16px;
+}
+
+.create-squad-success p {
+    margin: 0;
+    color: var(--hint);
+}
+
+.status.error {
+    color: var(--danger);
+}
+
+label {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 12px;
+    color: var(--hint);
+}
+
+.label-text {
+    color: var(--hint);
+}
+
+.required-mark {
+    color: var(--danger);
+    margin-right: 2px;
+}
+
+.label-optional {
+    color: var(--hint);
+    font-size: 13px;
+    font-weight: 400;
+}
+
+.field {
+    position: relative;
+    margin-bottom: 12px;
+}
+
+.field label {
+    margin-bottom: 0;
+}
+
+.field-error.hidden {
+    display: none;
+}
+
+.field-error {
+    position: absolute;
+    z-index: 12;
+    bottom: calc(100% - 4px);
+    left: 0;
+    max-width: 100%;
+    margin: 0;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--danger) 18%, var(--card));
+    border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
+    box-shadow: 0 10px 28px rgb(0 0 0 / 28%);
+    color: #fecaca;
+    font-size: 13px;
+    line-height: 1.35;
+}
+
+.field-error::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 16px;
+    border: 6px solid transparent;
+    border-top-color: color-mix(in srgb, var(--danger) 45%, transparent);
+}
+
+.field-invalid input {
+    border-color: color-mix(in srgb, var(--danger) 55%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 22%, transparent);
+}
+
+.registration-hint {
+    margin: 0 0 14px;
+    color: var(--hint);
+    font-size: 14px;
+    line-height: 1.45;
+}
+
+input,
+textarea,
+select,
+.admin-input,
+.admin-select {
+    width: 100%;
+    border: 1px solid rgb(255 255 255 / 12%);
+    border-radius: 12px;
+    padding: 12px;
+    background: rgb(0 0 0 / 16%);
+    color: var(--text);
+    font: inherit;
+}
+
+select,
+.admin-select {
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: 38px;
+    cursor: pointer;
+}
+
+select:disabled,
+.admin-select:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.admin-select-wrap {
+    position: relative;
+    min-width: 0;
+}
+
+.admin-select-wrap::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    right: 14px;
+    width: 8px;
+    height: 8px;
+    border-right: 2px solid var(--hint);
+    border-bottom: 2px solid var(--hint);
+    transform: translateY(-65%) rotate(45deg);
+    pointer-events: none;
+}
+
+.admin-select-wrap .admin-select,
+.admin-select-wrap select {
+    width: 100%;
+}
+
+.squad-picker {
+    position: relative;
+}
+
+.squad-picker input[type="text"] {
+    padding-right: 42px;
+}
+
+.squad-clear {
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border-radius: 999px;
+    font-size: 18px;
+    line-height: 1;
+    transform: translateY(-50%);
+}
+
+.squad-list {
+    position: absolute;
+    z-index: 10;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    max-height: 168px;
+    margin: 0;
+    padding: 6px;
+    list-style: none;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border: 1px solid rgb(255 255 255 / 12%);
+    border-radius: 12px;
+    background: var(--card);
+    box-shadow: 0 12px 40px rgb(0 0 0 / 28%);
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--button) 70%, transparent) transparent;
+}
+
+.squad-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+.squad-list::-webkit-scrollbar-track {
+    margin: 8px 0;
+    background: transparent;
+}
+
+.squad-list::-webkit-scrollbar-thumb {
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--button) 58%, transparent);
+    background-clip: padding-box;
+}
+
+.squad-list::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--button) 82%, white);
+    background-clip: padding-box;
+}
+
+.squad-list li {
+    padding: 10px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    color: var(--text);
+    transition:
+        background-color 0.15s ease,
+        box-shadow 0.15s ease,
+        color 0.15s ease;
+}
+
+.squad-list li[data-squad-id]:hover,
+.squad-list li[data-squad-id].active {
+    background: color-mix(in srgb, var(--button) 24%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--button) 42%, transparent);
+}
+
+.squad-list li[aria-selected="true"] {
+    background: var(--button);
+    color: var(--button-text);
+    box-shadow: none;
+}
+
+.squad-list li[aria-selected="true"]:hover,
+.squad-list li[aria-selected="true"].active {
+    background: color-mix(in srgb, var(--button) 88%, white);
+    color: var(--button-text);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 22%);
+}
+
+.squad-list .squad-empty {
+    padding: 10px 12px;
+    color: var(--hint);
+    cursor: default;
+}
+
+textarea {
+    min-height: 72px;
+    resize: vertical;
+}
+
+button {
+    border: 0;
+    border-radius: 12px;
+    padding: 11px 14px;
+    background: var(--button);
+    color: var(--button-text);
+    font: inherit;
+    font-weight: 650;
+    cursor: pointer;
+}
+
+button:disabled,
+input:disabled,
+textarea:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.ghost-button {
+    background: rgb(255 255 255 / 10%);
+    color: var(--text);
+}
+
+.danger-button {
+    background: var(--danger);
+    margin-top: 8px;
+}
+
+.memberships {
+    margin: 12px 0;
+}
+
+.memberships-label {
+    margin-bottom: 8px;
+    color: var(--hint);
+    font-size: 14px;
+}
+
+.membership-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.membership-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid rgb(255 255 255 / 8%);
+}
+
+.membership-item:last-child {
+    border-bottom: 0;
+}
+
+.membership-leave {
+    flex-shrink: 0;
+    padding: 8px 10px;
+    font-size: 13px;
+}
+
+.primary-badge {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--button) 28%, transparent);
+    color: var(--button);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.primary-squad-label {
+    margin-top: 12px;
+}
+
+.registration-note {
+    margin: 0 0 12px;
+    color: var(--hint);
+    font-size: 14px;
+}
+
+.main-menu {
+    padding: 12px;
+}
+
+.menu-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    align-items: stretch;
+}
+
+.menu-button {
+    min-height: 52px;
+    height: 100%;
+    padding: 14px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+.view-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.view-header h2 {
+    margin: 0;
+    font-size: 20px;
+}
+
+.tabs,
+.segmented {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.primary-squad-picker {
+    margin-top: 12px;
+}
+
+.primary-squad-picker .segmented {
+    margin: 8px 0 0;
+}
+
+.segmented {
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    margin: 12px 0 0;
+}
+
+.tab,
+.segmented button {
+    background: rgb(255 255 255 / 10%);
+    color: var(--text);
+}
+
+.tab.active,
+.segmented button.active {
+    background: var(--button);
+    color: var(--button-text);
+}
+
+.event-card p {
+    margin-bottom: 12px;
+    color: var(--hint);
+}
+
+.summary-group {
+    margin-top: 12px;
+}
+
+.summary-group ul {
+    margin: 8px 0 0;
+    padding-left: 18px;
+}
+
+.empty {
+    padding: 24px 16px;
+    color: var(--hint);
+    text-align: center;
+}
+
+.hidden {
+    display: none !important;
+}
+
+.loading-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: blur(6px);
+}
+
+.confirm-dialog {
+    position: fixed;
+    inset: 0;
+    z-index: 1100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+
+.confirm-dialog-backdrop {
+    position: absolute;
+    inset: 0;
+    padding: 0;
+    border: 0;
+    background: color-mix(in srgb, var(--bg) 72%, transparent);
+    backdrop-filter: blur(4px);
+    cursor: default;
+}
+
+.confirm-dialog-panel {
+    position: relative;
+    width: min(400px, 100%);
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.confirm-dialog-message {
+    margin: 0;
+    font-size: 16px;
+    line-height: 1.45;
+    text-align: center;
+}
+
+.confirm-dialog-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.confirm-dialog-actions .danger-button {
+    margin-top: 0;
+}
+
+.newtons-cradle {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    width: 132px;
+    height: 72px;
+}
+
+.newtons-cradle span {
+    position: relative;
+    display: block;
+    width: 18px;
+    height: 18px;
+    margin: 0 3px;
+    border-radius: 50%;
+    background: linear-gradient(145deg, color-mix(in srgb, var(--button) 82%, white), var(--button));
+    box-shadow: 0 8px 18px rgb(0 0 0 / 28%);
+    transform-origin: center -34px;
+}
+
+.newtons-cradle span::before {
+    content: "";
+    position: absolute;
+    bottom: calc(100% + 2px);
+    left: 50%;
+    width: 2px;
+    height: 34px;
+    background: linear-gradient(to bottom, rgb(255 255 255 / 18%), var(--hint));
+    transform: translateX(-50%);
+}
+
+.newtons-cradle span:first-child {
+    animation: cradle-left 1.15s ease-in-out infinite;
+}
+
+.newtons-cradle span:last-child {
+    animation: cradle-right 1.15s ease-in-out infinite;
+}
+
+@keyframes cradle-left {
+    0%,
+    45%,
+    100% {
+        transform: rotate(0deg);
+    }
+
+    22% {
+        transform: rotate(34deg);
+    }
+}
+
+@keyframes cradle-right {
+    0%,
+    55%,
+    100% {
+        transform: rotate(0deg);
+    }
+
+    78% {
+        transform: rotate(-34deg);
+    }
+}
+
+.admin-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid rgb(255 255 255 / 8%);
+}
+
+.admin-row:last-child {
+    border-bottom: none;
+}
+
+.admin-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.admin-games {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.admin-game-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text);
+}
+
+.admin-game-add {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.admin-game-add .admin-input,
+.admin-game-add input {
+    min-width: 0;
+}
+
+.admin-games-panel {
+    padding: 10px;
+    border-radius: 14px;
+    border: 1px solid color-mix(in srgb, var(--button) 34%, transparent);
+    background: color-mix(in srgb, var(--button) 8%, var(--card));
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 6%);
+}
+
+.admin-submit-button {
+    min-width: 44px;
+    padding: 0 14px;
+    align-self: stretch;
+}
+
+.admin-games-list {
+    display: grid;
+    gap: 8px;
+}
+
+.admin-game-row {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    min-height: 48px;
+    padding: 10px 12px;
+    border: 1px solid color-mix(in srgb, var(--button) 28%, transparent);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--button) 14%, rgb(0 0 0 / 10%));
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 5%);
+}
+
+.admin-game-row.is-main {
+    border-color: color-mix(in srgb, var(--button) 62%, transparent);
+    background: color-mix(in srgb, var(--button) 24%, rgb(0 0 0 / 10%));
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 8%),
+        0 0 0 1px color-mix(in srgb, var(--button) 18%, transparent);
+}
+
+.admin-game-row.drag-over {
+    border-color: color-mix(in srgb, var(--button) 58%, transparent);
+}
+
+.admin-game-row.dragging {
+    opacity: 0.65;
+}
+
+.admin-game-drag {
+    color: var(--hint);
+    cursor: grab;
+    user-select: none;
+}
+
+.admin-game-main {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.admin-game-title {
+    min-width: 0;
+    font-weight: 600;
+    line-height: 1.25;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+}
+
+.admin-game-main-badge {
+    align-self: flex-start;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--button) 30%, transparent);
+    color: var(--button);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.admin-game-actions {
+    display: flex;
+    flex-shrink: 0;
+    gap: 6px;
+}
+
+.admin-icon-button {
+    min-width: 34px;
+    padding: 6px 8px;
+    background: rgb(255 255 255 / 10%);
+    color: var(--text);
+}
+
+.admin-icon-button.active {
+    background: var(--button);
+    color: var(--button-text);
+}
+
+.admin-icon-button--danger {
+    background: color-mix(in srgb, var(--danger) 22%, transparent);
+    color: #fecaca;
+}
+
+.admin-schedule-form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.admin-schedule-form-row {
+    display: grid;
+    gap: 8px;
+    align-items: stretch;
+}
+
+.admin-schedule-form-row--title {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.admin-schedule-form-row--timing {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.admin-schedule-form-row--game {
+    grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.admin-schedule-timing-slot {
+    min-width: 0;
+}
+
+.admin-schedule-timing-slot > .schedule-field {
+    width: 100%;
+}
+
+.admin-schedule-game-wrap {
+    min-width: 0;
+}
+
+.admin-schedule-form .admin-select-wrap {
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.admin-schedule-form .admin-input,
+.admin-schedule-form .admin-select,
+.admin-schedule-form input,
+.admin-schedule-form select {
+    min-width: 0;
+    border: 1px solid color-mix(in srgb, var(--button) 28%, transparent);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--button) 14%, var(--card));
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 5%);
+}
+
+.admin-schedule-form .admin-select,
+.admin-schedule-form select {
+    padding-top: 11px;
+    padding-bottom: 11px;
+}
+
+.admin-schedule-form .admin-select option,
+.admin-schedule-form select option {
+    background: var(--card);
+    color: var(--text);
+}
+
+.admin-schedule-form .admin-submit-button {
+    min-width: 48px;
+    min-height: 48px;
+    align-self: stretch;
+}
+
+.admin-schedule-form .admin-input[type="date"],
+.admin-schedule-form .admin-input[type="time"],
+.admin-schedule-form input[type="date"],
+.admin-schedule-form input[type="time"] {
+    color-scheme: dark light;
+}
+
+.admin-schedule-list {
+    padding: 10px;
+    border-radius: 14px;
+    border: 1px solid color-mix(in srgb, var(--button) 24%, transparent);
+    background: color-mix(in srgb, var(--button) 6%, var(--card));
+}
+
+.admin-schedule-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 0;
+    border-top: 1px solid color-mix(in srgb, var(--hint) 18%, transparent);
+}
+
+.admin-schedule-row:first-child {
+    border-top: none;
+    padding-top: 0;
+}
+
+.admin-schedule-info p {
+    margin: 4px 0 0;
+    color: var(--hint);
+    font-size: 13px;
+}
+
+.admin-schedule-info strong {
+    margin-right: 6px;
+}
+
+.empty-inline {
+    color: var(--hint);
+    margin: 0;
+}
+
+.squad-context-options {
+    flex-wrap: wrap;
+}
+
+.identity-line {
+    margin: 0 0 12px;
+    color: var(--hint);
+    font-size: 14px;
+    line-height: 1.45;
+}
+
+.context-banner {
+    margin-bottom: 12px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.context-banner--info {
+    background: rgb(255 255 255 / 6%);
+    color: var(--hint);
+}
+
+.context-banner--own {
+    background: color-mix(in srgb, var(--button) 18%, var(--card));
+    color: var(--text);
+    border: 1px solid color-mix(in srgb, var(--button) 35%, transparent);
+}
+
+.context-banner--foreign {
+    background: color-mix(in srgb, var(--danger) 12%, var(--card));
+    color: var(--text);
+    border: 1px solid color-mix(in srgb, var(--danger) 28%, transparent);
+}
+
+.profile-controls {
+    padding: 12px 16px;
+}
+
+.game-selector {
+    margin-bottom: 14px;
+}
+
+.game-selector .memberships-label {
+    margin-bottom: 8px;
+}
+
+.always-attend-toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgb(255 255 255 / 6%);
+    cursor: pointer;
+}
+
+.always-attend-toggle--card {
+    margin: 0 0 12px;
+}
+
+.always-attend-toggle input {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    accent-color: var(--button);
+}
+
+.always-attend-toggle span {
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.always-attend-hint {
+    margin: 8px 0 0;
+    color: var(--hint);
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.auto-attend-hint {
+    margin: 0 0 10px;
+    color: color-mix(in srgb, var(--button) 70%, var(--text));
+    font-size: 13px;
+}
+
+.schedule-attendance-details {
+    margin-top: 4px;
+}
+
+.schedule-attendance-details > summary {
+    margin: 0 0 10px 4px;
+    color: var(--hint);
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.schedule-attendance-details[open] > summary {
+    margin-bottom: 12px;
+}
+
+.own-squad-dock {
+    margin-top: 12px;
+    padding: 12px;
+    border-radius: 14px;
+    border: 1px solid color-mix(in srgb, var(--button) 40%, transparent);
+    background: color-mix(in srgb, var(--button) 10%, var(--card));
+}
+
+.own-squad-dock--admin {
+    border-color: color-mix(in srgb, var(--button) 55%, transparent);
+}
+
+.own-squad-dock-title {
+    margin: 0 0 8px;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.own-squad-dock-meta {
+    margin: 0 0 10px;
+    color: var(--hint);
+    font-size: 13px;
+}
+
+.dock-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.dock-actions .dock-button {
+    flex: 1 1 calc(50% - 4px);
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+.admin-badge {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--button) 28%, transparent);
+    color: var(--button);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.dm-squad-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.dm-squad-grid {
+    grid-template-columns: 1fr;
+}
+
+.dm-squad-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.dm-squad-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px 12px;
+    border-radius: 14px;
+    background: var(--card);
+    box-shadow: 0 8px 24px rgb(0 0 0 / 12%);
+}
+
+.dm-squad-card-name {
+    margin: 0;
+    text-align: center;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.dm-squad-card-actions {
+    width: 100%;
+}
+
+.dm-squad-split-button {
+    display: flex;
+    width: 100%;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.dm-squad-split-button .dm-squad-open {
+    flex: 1;
+    min-height: 44px;
+    border-radius: 0;
+}
+
+.dm-squad-split-button .dm-squad-leave-icon {
+    flex-shrink: 0;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0;
+    border-left: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
+    color: var(--danger);
+    font-size: 18px;
+    font-weight: 700;
+    background: color-mix(in srgb, var(--danger) 15%, transparent);
+}
+
+.dm-squad-back {
+    grid-column: 1 / -1;
+    width: 100%;
+    margin-bottom: 4px;
+}
+
+.menu-grid--solo {
+    grid-template-columns: 1fr;
+}
+
+.menu-item-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-height: 100%;
+}
+
+.menu-button-hint {
+    margin: 0;
+    padding: 0 4px;
+    color: var(--hint);
+    font-size: 12px;
+    line-height: 1.35;
+    text-align: center;
+}
+
+.menu-button-hint--spacer {
+    min-height: calc(12px * 1.35);
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.event-card--readonly .readonly-hint {
+    margin: 0;
+    color: var(--hint);
+    font-size: 13px;
+}
+
+.comment-field {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    margin: 0 0 12px;
+}
+
+.comment-field textarea {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+}
+
+.comment-apply-btn {
+    flex-shrink: 0;
+    width: 42px;
+    height: 42px;
+    padding: 0;
+    border-radius: 12px;
+    background: rgb(255 255 255 / 10%);
+    color: var(--text);
+    font-size: 20px;
+    line-height: 1;
+}
+
+.comment-apply-btn:not(:disabled):active {
+    background: var(--button);
+    color: var(--button-text);
+}
+
+.preview-toolbar {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 1100;
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+    background: color-mix(in srgb, var(--card) 94%, transparent);
+    border-top: 1px solid rgb(255 255 255 / 12%);
+    backdrop-filter: blur(8px);
+}
+
+.preview-toolbar-inner {
+    width: min(760px, 100%);
+    margin: 0 auto;
+}
+
+.preview-scenario-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+.preview-scenario-btn {
+    min-width: 36px;
+    padding: 8px 10px;
+    font-size: 13px;
+}
+
+.preview-scenario-btn.active {
+    box-shadow: inset 0 0 0 2px rgb(255 255 255 / 35%);
+}
+
+.preview-error-btn {
+    min-width: 36px;
+    padding: 8px 10px;
+    font-size: 13px;
+    color: #fecaca;
+    border-color: color-mix(in srgb, var(--danger) 55%, transparent);
+}
+
+.preview-scenario-label {
+    margin: 0;
+    color: var(--hint);
+    font-size: 12px;
+}
+
+body:has(.preview-toolbar) .app {
+    padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+}
+
+.toast-container {
+    position: fixed;
+    top: max(12px, env(safe-area-inset-top, 0px));
+    left: 50%;
+    z-index: 1000;
+    display: grid;
+    gap: 10px;
+    width: min(420px, calc(100% - 24px));
+    transform: translateX(-50%);
+    pointer-events: none;
+}
+
+.toast {
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--danger) 22%, #1a0a0a);
+    border: 1px solid color-mix(in srgb, var(--danger) 65%, transparent);
+    box-shadow: 0 14px 36px rgb(0 0 0 / 32%);
+    color: #fecaca;
+    opacity: 0;
+    transform: translateY(-8px);
+    transition: opacity 0.22s ease, transform 0.22s ease;
+    pointer-events: auto;
+    cursor: pointer;
+}
+
+.toast-visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.toast-hiding {
+    opacity: 0;
+    transform: translateY(-8px);
+}
+
+.toast-code {
+    margin: 0 0 4px;
+    color: #fca5a5;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    word-break: break-word;
+}
+
+.toast-message {
+    margin: 0;
+    color: #fff1f2;
+    font-size: 14px;
+    line-height: 1.4;
+    word-break: break-word;
+}
+
+.schedule-panel {
+    padding: 12px;
+    overflow: hidden;
+}
+
+.schedule-toolbar {
+    display: grid;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.schedule-nav-group {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.schedule-nav-btn {
+    min-width: 36px;
+    height: 36px;
+    padding: 0 10px;
+    border: none;
+    border-radius: 10px;
+    background: rgb(255 255 255 / 10%);
+    color: var(--text);
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.schedule-nav-btn--today {
+    font-size: 13px;
+    padding: 0 12px;
+}
+
+.schedule-nav-label {
+    min-width: 0;
+    text-align: center;
+    color: var(--text);
+    font-weight: 600;
+}
+
+.schedule-nav-label--month {
+    min-width: 140px;
+    font-size: 16px;
+}
+
+.schedule-nav-label--week {
+    min-width: 160px;
+    font-size: 14px;
+    color: var(--hint);
+    font-weight: 500;
+}
+
+.schedule-grid {
+    display: grid;
+    gap: 8px;
+}
+
+.schedule-grid-header,
+.schedule-grid-body {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 6px;
+}
+
+.schedule-day-header {
+    display: grid;
+    justify-items: center;
+    gap: 2px;
+    padding: 6px 4px;
+    border-radius: 10px;
+    background: rgb(255 255 255 / 6%);
+}
+
+.schedule-day-header--today {
+    background: color-mix(in srgb, var(--button) 24%, transparent);
+}
+
+.schedule-day-name {
+    font-size: 11px;
+    color: var(--hint);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.schedule-day-date {
+    font-size: 15px;
+    font-weight: 700;
+}
+
+.schedule-day-column {
+    display: grid;
+    gap: 6px;
+    align-content: start;
+    min-height: 72px;
+    padding: 6px 4px;
+    border-radius: 10px;
+    background: rgb(255 255 255 / 4%);
+}
+
+.schedule-day-column--today {
+    background: color-mix(in srgb, var(--button) 12%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--button) 35%, transparent);
+}
+
+.schedule-day-empty {
+    min-height: 24px;
+}
+
+.schedule-event {
+    display: grid;
+    gap: 2px;
+    padding: 6px;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--button) 18%, var(--card));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--button) 28%, transparent);
+}
+
+.schedule-event-time {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--button);
+}
+
+.schedule-event-title {
+    font-size: 12px;
+    line-height: 1.25;
+    font-weight: 600;
+    word-break: break-word;
+}
+
+.schedule-event-game {
+    font-size: 11px;
+    color: var(--hint);
+    word-break: break-word;
+}
+
+.schedule-event-badge {
+    display: inline-block;
+    margin-left: 4px;
+    padding: 1px 4px;
+    border-radius: 4px;
+    background: rgb(255 255 255 / 12%);
+    color: var(--hint);
+    font-size: 9px;
+    font-weight: 500;
+    vertical-align: middle;
+}
+
+.schedule-empty-hint {
+    margin-top: 0;
+}
+
+.schedule-attendance-section {
+    margin-top: 4px;
+}
+
+.schedule-attendance-title {
+    margin: 0 0 10px 4px;
+    font-size: 16px;
+    color: var(--hint);
+    font-weight: 600;
+}
+
+@media (max-width: 520px) {
+    .schedule-grid-header,
+    .schedule-grid-body {
+        gap: 4px;
+    }
+
+    .schedule-day-header {
+        padding: 4px 2px;
+    }
+
+    .schedule-day-name {
+        font-size: 10px;
+    }
+
+    .schedule-day-date {
+        font-size: 13px;
+    }
+
+    .schedule-day-column {
+        padding: 4px 2px;
+        min-height: 56px;
+    }
+
+    .schedule-event {
+        padding: 4px;
+    }
+
+    .schedule-event-title {
+        font-size: 11px;
+    }
+
+    .schedule-nav-label--month {
+        min-width: 110px;
+        font-size: 14px;
+    }
+
+    .schedule-nav-label--week {
+        min-width: 120px;
+        font-size: 12px;
+    }
+}
+

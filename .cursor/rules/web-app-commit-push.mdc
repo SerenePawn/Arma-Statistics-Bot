@@ -1,0 +1,34 @@
+---
+description: Commit and push after web_app changes
+globs: web_app/**
+alwaysApply: false
+---
+
+# web_app: commit and push
+
+After changing any file under `web_app/`, commit and push before finishing the task.
+
+## When to run
+
+- Any edit, add, or delete under `web_app/` (static files, API, config, etc.)
+- Skip if the session only read files or made no `web_app/` changes
+
+## Workflow
+
+1. `git status` and `git diff` — confirm only intended `web_app/` changes are included
+2. Stage `web_app/` changes (do not stage secrets: `.env`, credentials)
+3. Commit with a short message focused on why (1–2 sentences)
+4. Push to the current branch (`git push` or `git push -u origin HEAD` if no upstream)
+
+## Commit message
+
+Match repo style. Examples:
+
+- `fix(web_app): remove stale reload button handler`
+- `refactor(web_app): simplify profile section header`
+
+## Constraints
+
+- Do not amend, force-push, or skip hooks unless the user explicitly asks
+- Do not push to `main`/`master` with force
+- If push fails (auth, conflicts), report the error and what was committed locally

@@ -4,7 +4,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from loguru import logger
 
 from core.app_state import AppState
-from core.background import send_attendances, parse_ocaps
+from core.background import parse_ocaps
 from core.db.db import init
 from core.startup_commands import StartupParams, STARTUP_PARAMS
 
@@ -23,8 +23,7 @@ async def startup_app(params: list[str]):
     bg_loop = asyncio.get_event_loop()
 
     scheduler = BackgroundScheduler(timezone="Europe/Moscow")
-    scheduler.add_job(lambda: bg_loop.create_task(parse_ocaps(state, bg_loop)), "cron", second=0)
-    scheduler.add_job(lambda: bg_loop.create_task(send_attendances(state, bg_loop)), "cron", hour=12, minute=0)
+    # scheduler.add_job(lambda: bg_loop.create_task(parse_ocaps(state, bg_loop)), "cron", second=0)
     scheduler.start()
 
     logger.info("Startup complete; Start TG polling")

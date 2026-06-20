@@ -1,0 +1,17 @@
+[Unit]
+Description=Arma Stat Counter Telegram Bot
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/root/projects/asb
+Environment=PYTHONUNBUFFERED=1
+ExecStart=flock -xn /tmp/main_py_bot.lock -c "/root/projects/asb/.venv/bin/python main.py"
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

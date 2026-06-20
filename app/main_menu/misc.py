@@ -1,6 +1,6 @@
 from aiogram.types import Message
 
-from app.main_menu.markup import MARKUP_MAIN_MENU
+from app.main_menu.markup import build_group_menu
 from core.app_state import AppState
 from logic.squads import db as squads_db
 from logic.squads.models import Squad
@@ -12,7 +12,7 @@ async def main_menu_open(message: Message, squad: Squad | None = None):
         message.chat.id,
         message_thread_id=message.message_thread_id,
         text="Перед взаимодействием с ботом, напишите ему в личку /start\nГлавное меню",
-        reply_markup=MARKUP_MAIN_MENU,
+        reply_markup=build_group_menu(message.chat.id),
         protect_content=True,
         disable_notification=True
     )
@@ -35,5 +35,5 @@ async def main_menu_ui_open(message: Message, squad: Squad | None = None):
 async def main_menu_edit(message: Message):
     await message.edit_text(
         text="Перед взаимодействием с ботом, чирканите ему в личку /start\nГлавное меню",
-        reply_markup=MARKUP_MAIN_MENU
+        reply_markup=build_group_menu(message.chat.id),
     )

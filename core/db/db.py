@@ -1,64 +1,63 @@
-import os
-from sqlite3 import OperationalError
-from typing import Any, overload
+import os, json
+from typing import Any, overload, Literal
 
-import aiosqlite as sqlite
-from aiosqlite import Cursor, Row
+from asyncpg import UndefinedTableError, PostgresSyntaxError
 from loguru import logger
 from pydantic import BaseModel
 
+from core.encoders import json_default_encoder
 from core.settings import BotSettings
-
-"""
-Тому, кто решил спиздить код: функции прикручены от другой БД при помощи некоторого шаманства. 
-Не удивляйся, если нихуя из фич не работает и половину кода нужно будет переписывать))
-Хотя я тут и так дохера сделал, мб только небольшую часть нужно переписать.
-"""
+import asyncpg
 
 
-async def init(config: BotSettings, **extra_kwargs: object) -> "sqlite.Connection":
-    logger.info(f"Init db conn")
-    if not config.SQLITE_PATH:
+async def init(config: BotSettings, **extra_kwargs: object) -> "asyncpg.Pool[Any]":
+    if not config.PSQL_PATH:
         msg = "DB connection parameters not defined"
         raise RuntimeError(msg)
-    conn = await sqlite.connect(
-        config.SQLITE_PATH,
+    return await asyncpg.create_pool(
+        dsn=config.PSQL_PATH,
+        init=init_connection,
+        min_size=1,
+        max_size=3,
         **extra_kwargs,
     )
-    conn.row_factory = __row_factory_dict
+
+
+async def init_connection[T: asyncpg.Connection[Any]](conn: T) -> T:
+    await conn.set_type_codec(
+        "jsonb",
+        encoder=encode_json,
+        decoder=json.loads,
+        schema="pg_catalog",
+    )
+
     return conn
 
 
-def __row_factory_dict(cursor: Cursor, row: Row) -> dict:
-    data = {}
-    for idx, col in enumerate(cursor.description):
-        data[col[0].replace("()", "")] = row[idx]
-    return data
-
-
 async def migrate_up(config: BotSettings, **extra_kwargs: object):
-    async with sqlite.connect(config.SQLITE_PATH, **extra_kwargs) as conn:
-        try:
-            migrations_in_db = await get_list(conn, "migrations")
-        except OperationalError:
-            migrations_in_db = []
-        nums_in_db = [i[0] for i in migrations_in_db]
+    conn: asyncpg.Connection = await asyncpg.connect(dsn=config.PSQL_PATH, **extra_kwargs)
+    try:
+        migrations_in_db = await get_list(conn, "migrations")
+    except UndefinedTableError:
+        migrations_in_db = []
+    nums_in_db = [i[0] for i in migrations_in_db]
 
-        migrations = os.listdir(config.MIGRATIONS_PATH)
-        for migration_filename in migrations:
-            num, *_ = migration_filename.split("_")
-            if num not in nums_in_db:
-                with open(f"{config.MIGRATIONS_PATH}/{migration_filename}", "r") as fd:
-                    try:
-                        await conn.executescript(fd.read())
-                        await create(conn, "migrations", data={"id": num})
-                    except:
-                        raise
+    migrations = os.listdir(config.MIGRATIONS_PATH)
+    for migration_filename in migrations:
+        num, *_ = migration_filename.split("_")
+        if num not in nums_in_db:
+            with open(f"{config.MIGRATIONS_PATH}/{migration_filename}", "r") as fd:
+                try:
+                    await conn.execute(fd.read())
+                    await create(conn, "migrations", data={"id": num})
+                except Exception as e:
+                    logger.error(f"Failed to apply migration #{num}: {repr(e)}")
+    await conn.close()
 
 
 def record_to_model_list[T: BaseModel](
     model_cls: type[T],
-    records: list[sqlite.Row] | None,
+    records: list[asyncpg.Record | dict] | None,
 ) -> list[T]:
     if records:
         return [
@@ -71,15 +70,26 @@ def record_to_model_list[T: BaseModel](
     return []
 
 
+# TODO Интегрирование пагинации
+# def record_to_model_pagination[T: BaseModel](
+#     model_cls: type[T],
+#     records: PaginatedRecords,
+# ) -> PaginationSchema[T]:
+#     items = [record_to_model(model_cls, i) for i in records.items]
+#     return PaginationSchema[T].model_validate(
+#         records.model_dump(exclude={"items"}) | {"items": items},
+#     )
+
+
 @overload
-def record_to_model[T: BaseModel](model_cls: type[T], record: sqlite.Row) -> T: ...
+def record_to_model[T: BaseModel](model_cls: type[T], record: asyncpg.Record | dict) -> T: ...
 
 
 @overload
 def record_to_model[T: BaseModel](model_cls: type[BaseModel], record: None) -> None: ...
 
 
-def record_to_model[T: BaseModel](model_cls: type[T], record: sqlite.Row | None) -> T | None:
+def record_to_model[T: BaseModel](model_cls: type[T], record: asyncpg.Record | dict | None) -> T | None:
     if record:
         return model_cls.model_validate(dict(record))
 
@@ -87,7 +97,7 @@ def record_to_model[T: BaseModel](model_cls: type[T], record: sqlite.Row | None)
 
 
 async def get(
-    conn: "sqlite.Connection",
+    conn: "asyncpg.Connection[Any]",
     table: str,
     pk: int,
     fields: list[str] | None = None,
@@ -95,72 +105,71 @@ async def get(
     additional_values: list[Any] | None = None,
     for_update: bool = False,
     left_outer_join: list[str] | None = None,
-) -> sqlite.Row | None:
-    if pk is None:
-        msg = "pk or uuid required"
-        raise RuntimeError(msg)
-
+) -> asyncpg.Record | None:
     additional_values = additional_values or []
     additional_where = additional_where or []
 
     values = [pk]
     select_fields = ", ".join(fields) if fields else "*"
-    where = "id" if pk is not None else "uuid"
+    where = "id"
 
     values = values + additional_values
-    _where = " AND ".join([f"{i} = ?" for i in [where, *additional_where]])
+    _where = " AND ".join([f"{k} = ${i + 1}" for i, k in enumerate([where, *additional_where])])
 
     left_join_query = ""
     if left_outer_join is not None:
         left_join_query = " ".join([f"LEFT JOIN {i}" for i in left_outer_join])
 
-    query = f"SELECT {select_fields} FROM {table} {left_join_query} WHERE {_where} {'for_update' if for_update else ''}"
-    logger.debug(f"DB q='{query.strip()}' | {values=}")
-
-    result_query = await conn.execute_fetchall(query, values)
-    if not result_query:
-        return None
-
-    result, *_ = result_query
-    return result
+    query = f"SELECT {select_fields} FROM {table} {left_join_query} WHERE {_where} {'FOR UPDATE' if for_update else ''}"
+    try:
+        return await conn.fetchrow(query, *values)
+    except Exception as e:
+        logger.exception(f"Query failed (({repr(e)})):\n{query}")
+        raise
 
 
 @overload
 async def get_by_where(
-    conn: "sqlite.Connection",
+    conn: "asyncpg.Connection[Any]",
     table: str,
     where: str,
     values: list[Any] | None = None,
     fields: list[str] | None = None,
     order_by: list[str] | None = None,
+    return_rows: Literal[False] = False,
     left_outer_join: list[str] | None = None,
     group_by: list[str] | None = None,
-) -> list[sqlite.Row] | None: ...
+    for_update: bool = False,
+) -> asyncpg.Record | None: ...
 
 
 @overload
 async def get_by_where(
-    conn: "sqlite.Connection",
+    conn: "asyncpg.Connection[Any]",
     table: str,
     where: str,
     values: list[Any] | None = None,
     fields: list[str] | None = None,
     order_by: list[str] | None = None,
+    return_rows: Literal[True] = True,
     left_outer_join: list[str] | None = None,
     group_by: list[str] | None = None,
-) -> list[sqlite.Row] | None: ...
+    for_update: bool = False,
+) -> list[asyncpg.Record] | None: ...
 
 
 async def get_by_where(
-    conn: "sqlite.Connection",
+    conn: "asyncpg.Connection[Any]",
     table: str,
     where: str,
     values: list[Any] | None = None,
     fields: list[str] | None = None,
     order_by: list[str] | None = None,
+    return_rows: bool = False,
     left_outer_join: list[str] | None = None,
     group_by: list[str] | None = None,
-) -> list[sqlite.Row] | None:
+    for_update: bool = False,
+) -> asyncpg.Record | list[asyncpg.Record] | None:
     values = values or []
     select_fields = ", ".join(fields) if fields else "*"
     order_by_query = ""
@@ -175,28 +184,34 @@ async def get_by_where(
     if group_by:
         group_by_query = f"GROUP BY {','.join(group_by)}"
 
-    query = f"SELECT {select_fields} FROM {table} {left_join_query} WHERE {where} {order_by_query} {group_by_query}"
-    logger.debug(f"DB q='{query.strip()}' | {values=}")
+    query = f"""
+            SELECT {select_fields} 
+            FROM {table} 
+            {left_join_query} 
+            WHERE {where} 
+            {group_by_query} 
+            {order_by_query}              
+            {"FOR UPDATE" if for_update else ""}
+        """
 
-    result = await conn.execute_fetchall(query, values)
-    if not result:
-        return None
-
-    return list(result)
+    execute = conn.fetch if return_rows else conn.fetchrow
+    try:
+        return await execute(query, *values)
+    except:
+        logger.exception(f"Query {query} failed")
+        raise
 
 
 async def get_list(
-    conn: "sqlite.Connection",
+    conn: "asyncpg.Connection[Any]",
     table: str,
-    where: str | None = None,
+    where: str | list[str] | None = None,
     values: list[Any] | None = None,
     order: list[str] | None = None,
     group: list[str] | None = None,
     fields: list[str] | None = None,
     left_outer_join: list[str] | None = None,
-    limit: int | None = None,
-    page: int | None = None
-) -> list[sqlite.Row]:
+) -> list[asyncpg.Record]:
     values = values or []
     select_fields = ", ".join(fields) if fields else "*"
     where_query, limit_query, offset_query, order_query, group_query, left_join_query = "", "", "", "", "", ""
@@ -204,30 +219,151 @@ async def get_list(
     if left_outer_join is not None:
         left_join_query = " ".join([f"LEFT JOIN {i}" for i in left_outer_join])
     if where:
-        where_query = f"WHERE {where}"
+        where_ = " AND ".join(where) if isinstance(where, list) else where
+        where_query = f"WHERE {where_}"
     if order:
         order_query = "ORDER BY " + ", ".join([f"{i[1:]} DESC" if i.startswith("-") else i for i in order])
     if group:
         group_query = f"GROUP BY {','.join(group)}"
-    if limit:
-        limit_query = f"LIMIT {limit}"
-    if limit and page:
-        offset_query = f"OFFSET {limit * (page - 1)}"
     query = (
         f"SELECT {select_fields} "
-        f"FROM {table} {left_join_query} {where_query} {order_query} {group_query} {limit_query} {offset_query}"
+        f"FROM {table} {left_join_query} {where_query} {group_query} {order_query} {limit_query} {offset_query}"
     )
-    logger.debug(f"DB q='{query.strip()}' | {values=}")
     try:
-        result = await conn.execute_fetchall(query, *values)
-        return list(result)
+        return await conn.fetch(query, *values)
     except:
         logger.exception(f"Query {query} failed")
         raise
 
 
+# async def get_paginated(
+#     conn: "asyncpg.Connection[Any]",
+#     table: str,
+#     where: str | list[str] | None = None,
+#     limit: int | None = None,  # None по умолчанию, 0 без ограничения
+#     offset: int | None = None,
+#     values: list[Any] | None = None,
+#     order: list[str] | None = None,
+#     group: list[str] | None = None,
+#     fields: list[str] | None = None,
+#     left_outer_join: list[str] | None = None,
+# ) -> PaginatedRecords:
+#     values = values or []
+#     limit = settings.MAX_RECORDS_PER_PAGE if limit is None else limit
+#     select_fields = ", ".join(fields) if fields else "*"
+#     where_query, limit_query, offset_query, order_query, group_query, left_join = (
+#         "",
+#         f"LIMIT {limit}" if limit else "",
+#         "",
+#         "",
+#         "",
+#         "",
+#     )
+#     if left_outer_join:
+#         left_join = " ".join([f"LEFT JOIN {i}" for i in left_outer_join])
+#     if where:
+#         where_ = " AND ".join(where) if isinstance(where, list) else where
+#         where_query = f"WHERE {where_}"
+#     if offset:
+#         offset_query = f"OFFSET {(offset - 1) * limit}"
+#     if order:
+#         order_query = "ORDER BY " + ", ".join([f"{i[1:]} DESC" if i.startswith("-") else i for i in order])
+#     if group:
+#         group_query = f"GROUP BY {','.join(group)}"
+#     query = (
+#         f"SELECT {select_fields} "
+#         f"FROM {table} {left_join} {where_query} {group_query} {order_query} {limit_query} {offset_query}"
+#     )
+#     query_total_items = f"SELECT COUNT(*) AS total_items FROM {table} {left_join} {where_query} {group_query}"
+#     try:
+#         total_items_result = await conn.fetchrow(query_total_items, *values)
+#         total_items = total_items_result["total_items"] if total_items_result else 0
+#         result = await conn.fetch(query, *values)
+#         _per_page = limit or total_items or 1
+#         paginated_records = {
+#             "items": result,
+#             "total_pages": ceil(total_items / _per_page),
+#             "current_page": offset,
+#             "page_items": len(result),
+#             "total_items": total_items,
+#         }
+#         return PaginatedRecords(**paginated_records)
+#     except:
+#         logger.exception(f"Query {query} failed")
+#         raise
+
+
+# async def get_paginated_query(
+#     conn: "asyncpg.Connection[Any]",
+#     stmt: str,
+#     values: list[Any],
+#     limit: int | None = None,
+#     offset: int | None = None,
+#     order: list[str] | None = None,
+# ) -> PaginatedRecords:
+#     limit = limit or 20
+#     query_total_items = f"SELECT COUNT(*) AS total_items FROM ({stmt})"
+#     order_query = ""
+#     pagination_query = f"LIMIT {limit}"
+#
+#     if offset:
+#         pagination_query = f"{pagination_query} OFFSET {(offset - 1) * limit}"
+#     if order:
+#         order_query = "ORDER BY " + ", ".join([f"{i[1:]} DESC" if i.startswith("-") else i for i in order])
+#
+#     query = f"{stmt} {order_query} {pagination_query}"
+#
+#     try:
+#         total_items_result = await conn.fetchrow(query_total_items, *values)
+#         total_items = total_items_result["total_items"]
+#         result = await conn.fetch(query, *values)
+#         paginated_records = {
+#             "items": result,
+#             "total_pages": ceil(total_items / limit),
+#             "current_page": offset,
+#             "page_items": len(result),
+#             "total_items": total_items,
+#         }
+#         return PaginatedRecords(**paginated_records)
+#     except:
+#         logger.exception(f"Query {query} failed")
+#         raise
+
+
+_empty: Any = object()
+
+
+async def get_raw(
+    conn: "asyncpg.Connection[Any]",
+    stmt: str,
+    values: list[Any] = _empty,
+) -> list[asyncpg.Record]:
+    if values is _empty:
+        values = []
+
+    try:
+        return await conn.fetch(stmt, *values)
+    except:
+        logger.exception(f"Query {stmt} failed")
+        raise
+
+async def get_raw_one(
+    conn: "asyncpg.Connection[Any]",
+    stmt: str,
+    values: list[Any] = _empty,
+) -> asyncpg.Record:
+    if values is _empty:
+        values = []
+
+    try:
+        return await conn.fetchrow(stmt, *values)
+    except:
+        logger.exception(f"Query {stmt} failed")
+        raise
+
+
 async def get_total(
-    conn: "sqlite.Connection",
+    conn: "asyncpg.Connection[Any]",
     table: str,
     where: str | None = None,
     values: list[Any] | None = None,
@@ -237,17 +373,20 @@ async def get_total(
     where_query = ""
     if where:
         where_query = f"WHERE {where}"
+    group_query = ""
     if group_by:
         group_query = f"GROUP BY {','.join(group_by)}"
-    query = f"SELECT count(*) as count FROM {table} {where_query}"
-    logger.debug(f"DB q='{query.strip()}' | {values=}")
-
-    result, *_ = await conn.execute_fetchall(query, *values)
-    return result["count"]
+    query = f"SELECT count(*) as count FROM {table} {where_query} {group_query}"
+    try:
+        result = await conn.fetchrow(query, *values)
+        return result["count"]
+    except:
+        logger.exception(f"Query {query} failed")
+        raise
 
 
 async def exists(
-    conn: "sqlite.Connection",
+    conn: "asyncpg.Connection[Any]",
     table: str,
     where: str | None = None,
     values: list[Any] | None = None,
@@ -256,10 +395,9 @@ async def exists(
     if where:
         where_query = f"WHERE {where}"
     query = f"SELECT * FROM {table} {where_query}"
-    logger.debug(f"DB q='{query.strip()}' | {values=}")
     try:
         return bool(
-            await conn.execute_fetchall(
+            await conn.fetchrow(
                 query,
                 *values,
             ),
@@ -270,19 +408,19 @@ async def exists(
 
 
 async def create(
-    conn: "sqlite.Connection",
+    conn: "asyncpg.Connection[Any]",
     table: str,
     data: dict[str, Any],
     insert_fields: list[str] | None = None,
     ignore_fields: list[str] | None = None,
     fields: list[str] | None = None,
     on_conflict: str | None = None,
-    commit: bool = True
-) -> sqlite.Row | None:
+) -> asyncpg.Record | None:
     fields = fields or []
     field_names: list[str] = []
     placeholders: list[str] = []
     values: list[str] = []
+    idx = 1
     return_fields = ", ".join(fields) if fields else "*"
     on_conflict = f"ON CONFLICT {on_conflict}" if on_conflict else ""
     for key in data:
@@ -293,37 +431,34 @@ async def create(
             continue
 
         field_names.append(key)
-        placeholders.append(f"?")
+        placeholders.append(f"${idx}")
         values.append(data[key])
+        idx += 1
     query = f"""
-        INSERT INTO {table} 
-            ({", ".join(field_names)}) 
-        VALUES 
-            ({", ".join(placeholders)}) 
-        {on_conflict} RETURNING {return_fields}
-    """
-    logger.debug(f"DB q='{query.strip()}' | {values=}")
+            INSERT INTO {table} 
+                ({", ".join(field_names)}) 
+            VALUES 
+                ({", ".join(placeholders)}) 
+            {on_conflict} RETURNING {return_fields}
+        """
     try:
-        result = await conn.execute_insert(query, values)
-        if commit:
-            await conn.commit()
-        return result
+        return await conn.fetchrow(query, *values)
     except:
         logger.exception(f"Query {query} failed")
         raise
 
 
 async def create_list(
-    conn: "sqlite.Connection",
+    conn: "asyncpg.Connection[Any]",
     table: str,
     data: list[dict[str, Any]],
     return_fields: list[str] | None = None,
     on_conflict: str | None = None,
-) -> list[int] | None:
+) -> list[asyncpg.Record] | None:
     # Добавляет несколько значений в БД за раз
     # Значения передаются в словаре, ключ - список (длины списков должны совпадать)
     # Словари в data должны обладать идентичными ключами.
-    # Не поддерживает тип `None` почему-то, sqlite ругается.
+    # Не поддерживает тип `None` почему-то, asyncpg ругается.
 
     if not data:
         return []
@@ -341,20 +476,20 @@ async def create_list(
         (
             SELECT {", ".join(first_data.keys())}
             FROM
-                unnest(?::{table}[]) as d
+                unnest($1::{table}[]) as d
         )
         {on_conflict_str}
         RETURNING {", ".join(return_fields) if return_fields else "*"}
     """
-    logger.debug(f"DB q='{query.strip()}'")
-
-    result = await conn.execute_fetchall(query, data)
-    await conn.commit()
-    return [i["last_insert_rowid"] for i in result]
+    try:
+        return await conn.fetch(query, data)
+    except:
+        logger.exception(f"Query {query} failed")
+        raise
 
 
 async def update(
-    conn: "sqlite.Connection",
+    conn: "asyncpg.Connection[Any]",
     table: str,
     data: dict[str, Any],
     pk: int,
@@ -365,7 +500,8 @@ async def update(
     fields: list[str] | None = None,
     with_updated_at: bool = True,
     with_deleted_at: bool = False,
-) -> sqlite.Row | None:
+    updated_by: int | None = None,
+) -> asyncpg.Record | None:
     if pk is None:
         msg = "pk or uuid required"
         raise RuntimeError(msg)
@@ -375,12 +511,16 @@ async def update(
     idx = len(additional_values) + 1 if additional_values else 1
 
     values = additional_values or []
-    where = f"id = ?"
+    values.append(pk)
+    where = f"id = ${idx}"
     idx += 1
     return_fields = ", ".join(fields) if fields else "*"
 
     for key in data:
         if with_updated_at and key == "updated_at":
+            continue
+
+        if updated_by and key == "updated_by":
             continue
 
         if update_fields and key not in update_fields:
@@ -389,33 +529,33 @@ async def update(
         if ignore_fields and key in ignore_fields:
             continue
 
-        placeholders.append(f"{key} = ?")
+        placeholders.append(f"{key} = ${idx}")
         values.append(data[key])
         idx += 1
 
-    values.append(pk)  # Тут прибавляем значение id. Ебучий сикулайт...
     if with_updated_at:
-        placeholders.append("updated_at = CURRENT_TIMESTAMP")
+        placeholders.append("updated_at = (now() at time zone 'utc')")
     if with_deleted_at:
-        placeholders.append("deleted_at = CURRENT_TIMESTAMP")
+        placeholders.append("deleted_at = (now() at time zone 'utc')")
+    if updated_by:
+        placeholders.append(f"updated_by = ${idx}")
+        values.append(updated_by)
+        idx += 1
 
     update_set = ", ".join(placeholders)
     if additional_where:
         where = f"{where} AND {' AND '.join(additional_where)}"
     query = f"UPDATE {table} SET {update_set} WHERE {where} RETURNING {return_fields}"
-    logger.debug(f"DB q='{query.strip()}' | {values=}")
 
-    result_query = await conn.execute_fetchall(query, values)
-    if not result_query:
-        return None
-
-    result, *_ = result_query
-    await conn.commit()
-    return result
+    try:
+        return await conn.fetchrow(query, *values)
+    except:
+        logger.exception(f"Query {query} failed")
+        raise
 
 
 async def update_by_where(
-    conn: "sqlite.Connection",
+    conn: "asyncpg.Connection[Any]",
     table: str,
     data: dict[str, Any],
     where: str,
@@ -425,7 +565,8 @@ async def update_by_where(
     fields: list[str] | None = None,
     with_updated_at: bool = True,
     with_deleted_at: bool = False,
-) -> sqlite.Row | None:
+    return_rows: bool = False,
+) -> asyncpg.Record | None:
     return_fields = ", ".join(fields) if fields else "*"
     placeholders: list[str] = []
     update_values: list[str] = []
@@ -444,45 +585,47 @@ async def update_by_where(
         if ignore_fields and key in ignore_fields:
             continue
 
-        placeholders.append(f"{key} = ?")
+        placeholders.append(f"{key} = ${idx}")
         update_values.append(data[key])
         idx += 1
 
     if with_updated_at:
-        placeholders.append("updated_at = CURRENT_TIMESTAMP")
+        placeholders.append("updated_at = (now() at time zone 'utc')")
 
     if with_deleted_at:
-        placeholders.append("deleted_at = CURRENT_TIMESTAMP")
+        placeholders.append("deleted_at = (now() at time zone 'utc')")
 
     update = ", ".join(placeholders)
     values.extend(update_values)
     query = f"UPDATE {table} SET {update} WHERE {where} RETURNING {return_fields}"
-    logger.debug(f"DB q='{query.strip()}' | {values=}")
 
-    result_query = await conn.execute_fetchall(query, values)
-    if not result_query:
-        return None
+    execute = conn.fetchrow
 
-    result, *_ = result_query
-    await conn.commit()
-    return result
+    if return_rows:
+        execute = conn.fetch
+
+    try:
+        return await execute(query, *values)
+    except:
+        logger.exception(f"Query {query} failed")
+        raise
 
 
 async def disable_by_where(
-    conn: "sqlite.Connection",
+    conn: "asyncpg.Connection[Any]",
     table: str,
     pk: int | None = None,
     updated_by: int | None = None,
     where: list[str] | None = None,
     values: list[Any] | None = None,
-) -> sqlite.Row | None:
+) -> asyncpg.Record | None:
     idx = len(values) + 1 if values else 1
     values_ = values or []
     where_ = where or []
 
     if pk:
         values_.append(pk)
-        where_.append(f"id = ?")
+        where_.append(f"id = ${idx}")
         idx += 1
     if updated_by:
         values_.append(updated_by)
@@ -490,84 +633,76 @@ async def disable_by_where(
     query = f"""
         UPDATE {table} 
         SET 
-            deleted_at = CURRENT_TIMESTAMP
-            {f", updated_by = ?" if updated_by else ""}
+            deleted_at = (NOW() at time zone 'utc')
+            {f", updated_by = ${idx}" if updated_by else ""}
         WHERE {" AND ".join(where_)}
         RETURNING *
     """
-    logger.debug(f"DB q='{query.strip()}' | {values=}")
-
-    result_query = await conn.execute_fetchall(query, values)
-    if not result_query:
-        return None
-
-    result, *_ = result_query
-    await conn.commit()
-    return result
+    try:
+        return await conn.fetchrow(
+            query,
+            *values_,
+        )
+    except:
+        logger.exception(f"Query {query} failed")
+        raise
 
 
 async def delete_by_where(
-    conn: "sqlite.Connection",
+    conn: "asyncpg.Connection[Any]",
     table: str,
     pk: int | None = None,
     where: list[str] | None = None,
     values: list[Any] | None = None,
-) -> sqlite.Row | None:
+) -> asyncpg.Record | None:
+    idx = len(values) + 1 if values else 1
     values_ = values or []
     where_ = where or []
 
     if pk:
-        where_.append("id = ?")
         values_.append(pk)
+        where_.append(f"id = ${idx}")
 
     query = f"""
         DELETE FROM {table} 
         WHERE {" AND ".join(where_)}
         RETURNING *
     """
-    logger.debug(f"DB q='{query.strip()}' | {values=}")
-
-    result_query = await conn.execute_fetchall(query, values)
-    if not result_query:
-        return None
-
-    result, *_ = result_query
-    await conn.commit()
-    return result
+    try:
+        return await conn.fetchrow(
+            query,
+            *values_,
+        )
+    except:
+        logger.exception(f"Query {query} failed")
+        raise
 
 
 async def delete(
-    conn: "sqlite.Connection",
+    conn: "asyncpg.Connection[Any]",
     table: str,
     pk: int,
     fields: list[str] | None = None,
-) -> sqlite.Row | None:
-    if pk is None:
-        raise RuntimeError("pk or uuid required")
-
+) -> asyncpg.Record | None:
     fields = fields or []
     return_fields = ", ".join(fields) if fields else "*"
-    where = "id = ?"
+    where = "id = $1"
     query = f"DELETE FROM {table} WHERE {where} RETURNING {return_fields}"
-    logger.debug(f"DB q='{query.strip()}'")
-
-    result_query = await conn.execute_fetchall(query, [pk])
-    if not result_query:
-        return None
-
-    result, *_ = result_query
-    await conn.commit()
-    return result
+    try:
+        return await conn.fetchrow(query, pk)
+    except:
+        logger.exception(f"Query {query} failed")
+        raise
 
 
 async def disable(
-    conn: "sqlite.Connection",
+    conn: "asyncpg.Connection[Any]",
     table: str,
     pk: int,
     data: dict[str, Any] | None = None,
     fields: list[str] | None = None,
-) -> sqlite.Row | None:
-    result = await update(
+) -> asyncpg.Record | None:
+    return await update(
         conn,
         table=table,
         pk=pk,
@@ -576,30 +711,24 @@ async def disable(
         with_updated_at=False,
         with_deleted_at=True,
     )
-    await conn.commit()
-    return result
 
 
 async def enable(
-    conn: "sqlite.Connection",
+    conn: "asyncpg.Connection[Any]",
     table: str,
     pk: int,
     fields: list[str] | None = None,
-) -> sqlite.Row | None:
-    if pk is None:
-        msg = "pk or uuid required"
-        raise RuntimeError(msg)
-
+) -> asyncpg.Record | None:
     fields = fields or []
     return_fields = ", ".join(fields) if fields else "*"
-    where = "id = ?"
+    where = "id = $1"
     query = f"UPDATE {table} SET deleted_at = null WHERE {where} RETURNING {return_fields}"
-    logger.debug(f"DB q='{query.strip()}'")
+    try:
+        return await conn.fetchrow(query, pk)
+    except:
+        logger.exception(f"Query {query} failed")
+        raise
 
-    result_query = await conn.execute_fetchall(query, [pk])
-    if not result_query:
-        return None
 
-    result, *_ = result_query
-    await conn.commit()
-    return result
+def encode_json(value: object) -> str:
+    return json.dumps(value, default=json_default_encoder)

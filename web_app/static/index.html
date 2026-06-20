@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Arma Stat Counter</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/static/styles.css?v=18">
+</head>
+<body>
+    <div id="loading-overlay" class="loading-overlay hidden" aria-live="polite" aria-label="Загрузка">
+        <div class="newtons-cradle" aria-hidden="true">
+            <span></span>
+            <span></span>
+            <span></span>
+            <span></span>
+            <span></span>
+        </div>
+    </div>
+
+    <main class="app">
+        <section id="status" class="status hidden" aria-live="polite">
+            <p id="status-message"></p>
+            <button id="status-action" class="ghost-button status-action hidden" type="button"></button>
+        </section>
+
+        <section id="view-header" class="view-header hidden">
+            <button id="back-button" class="ghost-button" type="button">← Назад</button>
+            <h2 id="view-title"></h2>
+        </section>
+
+        <section id="context-banner" class="context-banner hidden" aria-live="polite"></section>
+
+        <p id="identity-line" class="identity-line hidden"></p>
+
+        <section id="profile-controls" class="card profile-controls hidden"></section>
+
+        <section id="game-selector" class="game-selector hidden"></section>
+
+        <section id="main-menu" class="card main-menu hidden">
+            <div id="main-menu-grid" class="menu-grid"></div>
+        </section>
+
+        <section id="registration-card" class="card hidden">
+            <h2 id="registration-title">Регистрация</h2>
+            <p class="registration-hint">После регистрации отряд можно добавить в меню.</p>
+
+            <div class="field" data-field="player-name">
+                <label for="player-name-input">
+                    <span class="label-text"><span class="required-mark" aria-hidden="true">*</span> Игровой ник без клан-тега</span>
+                    <input id="player-name-input" maxlength="50" placeholder="Player" autocomplete="off">
+                </label>
+                <p class="field-error hidden" role="alert"></p>
+            </div>
+
+            <div class="field hidden" data-field="squad">
+                <label for="squad-search">
+                    <span class="label-text">Отряд <span class="label-optional">(необязательно)</span></span>
+                    <div class="squad-picker" id="squad-picker">
+                        <input id="squad-search" type="text" placeholder="Оставьте пустым для одиночки" autocomplete="off" spellcheck="false">
+                        <button id="squad-clear" class="squad-clear ghost-button hidden" type="button" aria-label="Очистить отряд">×</button>
+                        <ul id="squad-list" class="squad-list hidden" role="listbox"></ul>
+                        <input id="squad-id" type="hidden">
+                    </div>
+                </label>
+                <p class="field-error hidden" role="alert"></p>
+            </div>
+
+            <button id="register-button" type="button" disabled>Зарегистрироваться</button>
+        </section>
+
+        <section id="content" class="hidden">
+            <section id="attendance-tab" class="tab-panel hidden"></section>
+            <section id="summary-tab" class="tab-panel hidden"></section>
+            <section id="admin-tab" class="tab-panel hidden"></section>
+            <section id="members-tab" class="tab-panel hidden"></section>
+            <section id="create-squad-tab" class="tab-panel hidden">
+                <div id="create-squad-form">
+                    <p class="registration-hint">Отряд будет привязан к этому групповому чату.</p>
+                    <div class="field" data-field="create-squad-name">
+                        <label for="create-squad-name-input">
+                            <span class="label-text"><span class="required-mark" aria-hidden="true">*</span> Название отряда</span>
+                            <input id="create-squad-name-input" maxlength="50" placeholder="Альфа" autocomplete="off">
+                        </label>
+                        <p class="field-error hidden" role="alert"></p>
+                    </div>
+                    <div class="field" data-field="create-squad-tags">
+                        <label for="create-squad-tags-input">
+                            <span class="label-text"><span class="required-mark" aria-hidden="true">*</span> Клан-теги через запятую</span>
+                            <input id="create-squad-tags-input" maxlength="100" placeholder="[TAG], [=TAG=]" autocomplete="off">
+                        </label>
+                        <p class="field-error hidden" role="alert"></p>
+                    </div>
+                    <button id="create-squad-button" type="button">Создать отряд</button>
+                </div>
+                <div id="create-squad-success" class="create-squad-success hidden">
+                    <p>Отряд создан.</p>
+                    <button id="create-squad-home-button" class="menu-button" type="button">На главное меню</button>
+                </div>
+            </section>
+        </section>
+    </main>
+
+    <template id="empty-template">
+        <div class="empty">Пока нет событий в расписании.</div>
+    </template>
+
+    <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+    <div id="confirm-dialog" class="confirm-dialog hidden" role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-message">
+        <button type="button" class="confirm-dialog-backdrop" aria-label="Закрыть"></button>
+        <div class="confirm-dialog-panel card">
+            <p id="confirm-dialog-message" class="confirm-dialog-message"></p>
+            <div class="confirm-dialog-actions">
+                <button type="button" class="ghost-button" id="confirm-dialog-cancel">Отмена</button>
+                <button type="button" class="danger-button" id="confirm-dialog-confirm">Подтвердить</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/preview-data.js?v=14"></script>
+    <script src="/static/preview.js?v=19"></script>
+    <script src="/static/app.js?v=30"></script>
+</body>
+</html>

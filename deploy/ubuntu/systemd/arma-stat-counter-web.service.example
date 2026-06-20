@@ -1,0 +1,17 @@
+[Unit]
+Description=Arma Stat Counter Telegram Web App
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/root/projects/asb
+Environment=PYTHONUNBUFFERED=1
+ExecStart=flock -xn /tmp/main_py_web.lock -c "/root/projects/asb/.venv/bin/uvicorn web_app.main:app --host 127.0.0.1 --port 8000 --proxy-headers --workers 1"
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

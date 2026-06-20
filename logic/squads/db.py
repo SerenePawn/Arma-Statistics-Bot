@@ -1,21 +1,23 @@
-from aiosqlite import Connection
+import asyncpg
 
 from core.db.db import record_to_model, record_to_model_list
+from logic.squads.chat_lookup import get_squad_id_by_telegram_chat_id, table_columns
+from logic.squads.friends import parse_friends_ids
 from logic.squads.models import Squad, SquadForm
 from core.db import db
+from logic.games import db as games_db
 
 
-async def create(conn: Connection, form: SquadForm) -> int:
+async def create(conn: asyncpg.Connection, form: SquadForm) -> int:
     result = await db.create(
         conn,
         table="squads",
         data=form.model_dump(exclude_none=True),
     )
-    await conn.commit()
-    return result["last_insert_rowid"]
+    return result["id"]
 
 
-async def get(conn: Connection, pk: int) -> Squad | None:
+async def get(conn: asyncpg.Connection, pk: int) -> Squad | None:
     result = await db.get(
         conn,
         "squads",
@@ -27,83 +29,64 @@ async def get(conn: Connection, pk: int) -> Squad | None:
     return model
 
 
-async def get_list(conn: Connection, pks: list[int]) -> list[Squad]:
-    result = await db.get_list(
-        conn,
-        "squads",
-        "id IN (?)",
-        [pks]
-    )
+async def get_list(conn: asyncpg.Connection, pks: list[int]) -> list[Squad]:
+    if not pks:
+        return []
+    placeholders = ", ".join([f"${i + 1}" for i in range(len(pks))])
+    result = await db.get_raw(conn, f"SELECT * FROM squads WHERE id IN ({placeholders})", pks)
     return record_to_model_list(Squad, result)
 
 
-async def get_by_chat(conn: Connection, chat_id: int, chat_thread_id: int | None = None) -> Squad | None:
-    result = await db.get_by_where(
+async def get_by_chat(conn: asyncpg.Connection, chat_id: int, chat_thread_id: int | None = None) -> Squad | None:
+    squad_id = await get_squad_id_by_telegram_chat_id(conn, chat_id)
+    if squad_id is None:
+        return None
+    if chat_thread_id is not None:
+        squad_cols = await table_columns(conn, "squads")
+        if "telegram_chat_id" in squad_cols:
+            result = await db.get_by_where(
+                conn,
+                "squads",
+                "telegram_chat_id = $1 AND telegram_chat_thread_id = $2",
+                [chat_id, chat_thread_id or ""],
+            )
+            return record_to_model(Squad, result) if result else None
+        if await table_columns(conn, "chatters"):
+            row = await conn.fetchrow(
+                """
+                SELECT s.*
+                FROM squads AS s
+                    JOIN chatters AS c ON c.id = s.chatters_id
+                WHERE c.telegram_chat_id = $1
+                    AND c.telegram_chat_thread_id = $2
+                ORDER BY s.id
+                LIMIT 1
+                """,
+                str(chat_id),
+                str(chat_thread_id or ""),
+            )
+            return record_to_model(Squad, row) if row else None
+    return await get(conn, squad_id)
+
+
+async def get_by_chat_thread_any(conn: asyncpg.Connection, chat_id: int) -> Squad | None:
+    squad_id = await get_squad_id_by_telegram_chat_id(conn, chat_id)
+    if squad_id is None:
+        return None
+    return await get(conn, squad_id)
+
+
+async def get_by_tag(conn: asyncpg.Connection, clan_tag: str) -> Squad | None:
+    result_squad = await db.get_by_where(
         conn,
         "squads",
-        "telegram_chat_id = ? AND telegram_chat_thread_id = ?",
-        [chat_id, chat_thread_id or ""],
+        "tags ILIKE $1",
+        [f"%{clan_tag}%"],
     )
-    if not result:
-        return None
-    model, *_ = record_to_model_list(Squad, result)
-    return model
-
-
-async def get_by_chat_thread_any(conn: Connection, chat_id: int) -> Squad | None:
-    result = await db.get_by_where(
-        conn,
-        "squads",
-        "telegram_chat_id = ?",
-        [chat_id],
-    )
-    if not result:
-        return None
-    model, *_ = record_to_model_list(Squad, result)
-    return model
-
-
-async def get_by_tag(conn: Connection, clan_tag: str) -> Squad | None:
-    result_found_tags = await conn.execute_fetchall(
-        f"""
-            WITH RECURSIVE split(value, str) AS (
-                SELECT NULL, (select group_concat(tags) FROM squads WHERE tags LIKE '%' || ? || '%') || ','
-                UNION ALL
-                SELECT
-                    SUBSTR(s.str, 0, INSTR(s.str, ',')),
-                    SUBSTR(s.str, INSTR(s.str, ',')+1)
-                FROM split s
-                WHERE s.str != ''
-            ) 
-            SELECT value AS tag
-            FROM split 
-            WHERE value IS NOT NULL
-                AND TRIM(value, '[]-=+*.') LIKE ?;
-        """,
-        parameters=[clan_tag, clan_tag]
-    )
-    found_tags = [i["tag"] for i in result_found_tags]
-    if not found_tags:
-        return None
-    found_tag, *_ = found_tags
-
-    result_squad = await conn.execute_fetchall(
-        f"""
-            SELECT *
-            FROM squads
-            WHERE tags LIKE '%' || ? || '%'
-        """,
-        parameters=[found_tag]
-    )
-    if not result_squad:
-        return None
-    result_squad, *_ = result_squad
-    if not result_squad["telegram_chat_id"]:
-        return None
     return record_to_model(Squad, result_squad)
 
 
-async def update(conn: Connection, squad_id: int, **data) -> Squad:
+async def update(conn: asyncpg.Connection, squad_id: int, **data) -> Squad:
     result = await db.update(
         conn,
         pk=squad_id,
@@ -111,5 +94,106 @@ async def update(conn: Connection, squad_id: int, **data) -> Squad:
         data=data,
         with_updated_at=False
     )
-    await conn.commit()
     return record_to_model(Squad, result)
+
+
+async def set_game_ids(conn: asyncpg.Connection, squad_id: int, game_ids: list[int]) -> list[int]:
+    await games_db.validate_game_ids(conn, game_ids)
+    row = await conn.fetchrow("SELECT main_game_ids FROM squads WHERE id = $1", squad_id)
+    current_main_ids = Squad.normalize_main_game_ids(row["main_game_ids"]) if row else []
+    next_main_ids = [game_id for game_id in current_main_ids if game_id in game_ids]
+    result = await db.update(
+        conn,
+        pk=squad_id,
+        table="squads",
+        data={"games_ids": game_ids, "main_game_ids": next_main_ids},
+        with_updated_at=False,
+    )
+    if not result:
+        return []
+    return Squad.normalize_games_ids(result.get("games_ids"))
+
+
+async def set_game_config(
+    conn: asyncpg.Connection,
+    squad_id: int,
+    game_ids: list[int],
+    main_game_ids: list[int],
+) -> tuple[list[int], list[int]]:
+    await games_db.validate_game_ids(conn, game_ids)
+    requested_main_ids = [int(game_id) for game_id in dict.fromkeys(main_game_ids)]
+    normalized_main_ids = [game_id for game_id in requested_main_ids if game_id in game_ids]
+    result = await db.update(
+        conn,
+        pk=squad_id,
+        table="squads",
+        data={"games_ids": game_ids, "main_game_ids": normalized_main_ids},
+        with_updated_at=False,
+    )
+    if not result:
+        return [], []
+    return (
+        Squad.normalize_games_ids(result.get("games_ids")),
+        Squad.normalize_main_game_ids(result.get("main_game_ids")),
+    )
+
+
+async def get_friends_ids(conn: asyncpg.Connection, squad_id: int) -> list[int]:
+    row = await conn.fetchrow("SELECT friends_ids FROM squads WHERE id = $1", squad_id)
+    if not row:
+        return []
+    return parse_friends_ids(row["friends_ids"])
+
+
+async def get_squad_ids_for_friend_player(conn: asyncpg.Connection, player_id: int) -> list[int]:
+    rows = await conn.fetch(
+        """
+        SELECT id
+        FROM squads
+        WHERE friends_ids @> to_jsonb(ARRAY[$1::int])
+        ORDER BY id
+        """,
+        player_id,
+    )
+    return [int(row["id"]) for row in rows]
+
+
+async def add_friend(conn: asyncpg.Connection, squad_id: int, player_id: int) -> Squad:
+    friends_ids = await get_friends_ids(conn, squad_id)
+    if player_id not in friends_ids:
+        friends_ids.append(player_id)
+    result = await db.update(
+        conn,
+        pk=squad_id,
+        table="squads",
+        data={"friends_ids": friends_ids},
+        with_updated_at=False,
+    )
+    return record_to_model(Squad, result)
+
+
+async def remove_friend(conn: asyncpg.Connection, squad_id: int, player_id: int) -> Squad:
+    friends_ids = [friend_id for friend_id in await get_friends_ids(conn, squad_id) if friend_id != player_id]
+    result = await db.update(
+        conn,
+        pk=squad_id,
+        table="squads",
+        data={"friends_ids": friends_ids},
+        with_updated_at=False,
+    )
+    return record_to_model(Squad, result)
+
+
+async def remove_player_from_all_friends(conn: asyncpg.Connection, player_id: int) -> None:
+    rows = await conn.fetch("SELECT id, friends_ids FROM squads")
+    for row in rows:
+        friends_ids = parse_friends_ids(row["friends_ids"])
+        if player_id not in friends_ids:
+            continue
+        await db.update(
+            conn,
+            pk=row["id"],
+            table="squads",
+            data={"friends_ids": [friend_id for friend_id in friends_ids if friend_id != player_id]},
+            with_updated_at=False,
+        )

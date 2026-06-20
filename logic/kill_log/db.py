@@ -1,4 +1,4 @@
-from aiosqlite import Connection
+import asyncpg
 
 from core.db import db
 from core.db.db import record_to_model_list
@@ -6,8 +6,8 @@ from logic.kill_log.misc import GameType
 from logic.kill_log.models import OcapForm, OcapDB, OcapDetail, OcapPlayer, OcapKill
 
 
-async def create_ocap(conn: Connection, form: OcapForm) -> int:
-    try:
+async def create_ocap(conn: asyncpg.Connection, form: OcapForm) -> int:
+    async with conn.transaction():
         ocap_result = await db.create(
             conn,
             table="ocaps",
@@ -17,9 +17,8 @@ async def create_ocap(conn: Connection, form: OcapForm) -> int:
                 "game_type": form.ocap.game_type,
                 "date_number": form.ocap.date_number,
             },
-            commit=False
         )
-        ocap_id = ocap_result["last_insert_rowid"]
+        ocap_id = ocap_result["id"]
 
         for p in form.players:
             await db.create(
@@ -33,7 +32,6 @@ async def create_ocap(conn: Connection, form: OcapForm) -> int:
                     "side": p.side,
                     "dead_at_frame": p.dead_at_frame,
                 },
-                commit=False
             )
 
         for k in form.kills:
@@ -52,29 +50,26 @@ async def create_ocap(conn: Connection, form: OcapForm) -> int:
                     "weapon_is_vehicle": k.weapon_is_vehicle,
                     "distance": k.distance,
                 },
-                commit=False
             )
-    except:
-        await conn.rollback()
-        raise
-    else:
-        await conn.commit()
     return ocap_id
 
 
-async def get_ocaps_by_filenames(conn: Connection, filenames: list[str]) -> list[OcapDB]:
+async def get_ocaps_by_filenames(conn: asyncpg.Connection, filenames: list[str]) -> list[OcapDB]:
+    if not filenames:
+        return []
     result = await db.get_by_where(
         conn,
         "ocaps",
-        where=f"filename IN ({", ".join("?" for i in filenames)})",
-        values=[*filenames]
+        where=f"filename IN ({', '.join([f'${i + 1}' for i in range(len(filenames))])})",
+        values=[*filenames],
+        return_rows=True,
     )
     if not result:
         return []
     return record_to_model_list(OcapDB, result)
 
 
-async def get_ocaps_list(conn: Connection) -> list[OcapDB]:
+async def get_ocaps_list(conn: asyncpg.Connection) -> list[OcapDB]:
     result = await db.get_list(
         conn,
         "ocaps"
@@ -84,71 +79,64 @@ async def get_ocaps_list(conn: Connection) -> list[OcapDB]:
     return record_to_model_list(OcapDB, result)
 
 
-async def get_ocap_detail(conn: Connection, game_type: GameType, clan_tag: str, num: int = 0) -> OcapDetail | None:
+async def get_ocap_detail(conn: asyncpg.Connection, game_type: GameType, clan_tag: str, num: int = 0) -> OcapDetail | None:
     ocap_offset = abs(num)
-    # Это пиздец. Ебнешься скрипты на sqlite писать. Я будто на чистом си пишу залупу какую-то.
-    # Запрос возможных тэгов сквада
-    result_found_tags = await conn.execute_fetchall(f"""
-        WITH RECURSIVE split(value, str) AS (
-            SELECT NULL, (select group_concat(tags) FROM squads WHERE tags LIKE '%{clan_tag}%') || ','
-            UNION ALL
-            SELECT
-                SUBSTR(s.str, 0, INSTR(s.str, ',')),
-                SUBSTR(s.str, INSTR(s.str, ',')+1)
-            FROM split s
-            WHERE s.str != ''
-        ) 
-        SELECT value AS tag
-        FROM split 
-        WHERE value IS NOT NULL
-            AND TRIM(value, '[]-=+*.') LIKE '{clan_tag}';
-    """)  # TODO: убрать из ф-строки инжекты клан-тега. Меня просто так заебали эти скрипты, что ну не могу уже..
-    found_tags = [f"name LIKE '{i["tag"]}%'" for i in result_found_tags]
+    result_found_tags = await db.get_raw(
+        conn,
+        """
+        SELECT tags
+        FROM squads
+        WHERE tags ILIKE $1
+        """,
+        [f"%{clan_tag}%"],
+    )
+    normalized = clan_tag.strip("[]-=+*.").lower()
+    found_tags = []
+    for row in result_found_tags:
+        for tag in (row["tags"] or "").split(","):
+            if tag.strip("[]-=+*.").lower() == normalized:
+                found_tags.append(tag)
     if not found_tags:
         return None
 
-    # STMTs here
-    with_loa_stmt = f"""
-        WITH last_ocap_array AS (
-            SELECT o.id
-            FROM ocaps o
-            WHERE o.game_type = '{game_type}'
-            ORDER BY o.date_number DESC
-            LIMIT 1 OFFSET {ocap_offset}
-        )
-    """
-    with_stmt = f"""
-        {with_loa_stmt},
-        ply_data AS (
-            SELECT op.side, op.group_name
-            FROM ocaps_players op
-            WHERE ({" OR ".join(found_tags)})
-                AND ocap_id IN last_ocap_array
-            GROUP BY op.group_name
-        ), ply_groups AS (
-            SELECT pd.group_name
-            FROM ply_data pd
-        ), ply_sides AS (
-            SELECT pd.side
-            FROM ply_data pd
-        )
-    """
-
-    # Запрос инфы последнего окапа
-    ocap_result = await conn.execute_fetchall(f"""
-        {with_loa_stmt}
-        SELECT 
-          o.*
+    ocap_result = await db.get_raw(
+        conn,
+        """
+        SELECT o.*
         FROM ocaps o
-        WHERE o.id in last_ocap_array
-    """)  # TODO: убрать из ф-строки инжекты клан-тега. Меня просто так заебали эти скрипты, что ну не могу уже..
+        WHERE o.game_type = $1
+        ORDER BY o.date_number DESC
+        LIMIT 1 OFFSET $2
+        """,
+        [game_type, ocap_offset],
+    )
     if not ocap_result:
         return None
     ocap_meta_data, *_ = ocap_result
+    ocap_id = ocap_meta_data["id"]
 
-    # Запрос киллов из сквада
-    result = await conn.execute_fetchall(f"""
-        {with_stmt}
+    like_filters = " OR ".join([f"op.name ILIKE ${i + 2}" for i in range(len(found_tags))])
+    like_values = [f"{tag}%" for tag in found_tags]
+    players_scope = await db.get_raw(
+        conn,
+        f"""
+        SELECT DISTINCT op.name, op.group_name, op.side
+        FROM ocaps_players op
+        WHERE op.ocap_id = $1 AND ({like_filters})
+        """,
+        [ocap_id, *like_values],
+    )
+    if not players_scope:
+        return OcapDetail(**ocap_meta_data, players=[])
+
+    groups = {row["group_name"] for row in players_scope}
+    sides = {row["side"] for row in players_scope}
+    group_filters = " OR ".join([f"opk.group_name = ${i + 2}" for i in range(len(groups))])
+    side_filters = " OR ".join([f"opk.side = ${i + 2 + len(groups)}" for i in range(len(sides))])
+
+    result = await db.get_raw(
+        conn,
+        f"""
         SELECT 
             opk.name, 
             opk.group_name,
@@ -162,18 +150,21 @@ async def get_ocap_detail(conn: Connection, game_type: GameType, clan_tag: str, 
             LEFT JOIN ocaps o ON ok.ocap_id = o.id
             LEFT JOIN ocaps_players opk ON opk.ocap_id = o.id AND opk.game_id = ok.killer_id
             LEFT JOIN ocaps_players opv ON opv.ocap_id = o.id AND opv.game_id = ok.killed_id
-        WHERE o.id IN last_ocap_array
-            AND opk.group_name IN ply_groups
-            AND opk.side IN ply_sides
+        WHERE o.id = $1
+            AND ({group_filters})
+            AND ({side_filters})
             AND COALESCE(opk.name <> opv.name, true)
         ORDER BY opk.name DESC;
-    """)  # TODO: убрать из ф-строки инжекты клан-тега. Меня просто так заебали эти скрипты, что ну не могу уже..
+    """,
+        [ocap_id, *groups, *sides],
+    )
     if not result:
         result = []
 
-    # Запрос киллов игроков, найденных выше  # TODO: stmt
-    killed_result = await conn.execute_fetchall(f"""
-        {with_stmt}
+    victim_filters = " OR ".join([f"COALESCE(opv.name, ok.killed_vehicle) ILIKE ${i + 2}" for i in range(len(found_tags))])
+    killed_result = await db.get_raw(
+        conn,
+        f"""
         SELECT 
             opk.name, 
             opk.group_name,
@@ -187,9 +178,10 @@ async def get_ocap_detail(conn: Connection, game_type: GameType, clan_tag: str, 
             LEFT JOIN ocaps_kills ok ON ok.ocap_id = o.id
             LEFT JOIN ocaps_players opk ON opk.ocap_id = o.id AND opk.game_id = ok.killer_id
             LEFT JOIN ocaps_players opv ON opv.ocap_id = o.id AND opv.game_id = ok.killed_id
-        WHERE o.id in last_ocap_array
-          and ({" OR ".join([f"victim_name LIKE '{i["tag"]}%'" for i in result_found_tags])});
-    """)  # TODO: убрать из ф-строки инжекты клан-тега. Меня просто так заебали эти скрипты, что ну не могу уже..
+        WHERE o.id = $1 AND ({victim_filters});
+    """,
+        [ocap_id, *like_values],
+    )
     if not killed_result:
         killed_result = []
     players_killed = {i["victim_name"]: i["name"] for i in killed_result}

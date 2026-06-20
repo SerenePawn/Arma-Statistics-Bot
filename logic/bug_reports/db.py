@@ -11,17 +11,22 @@ async def create(form: BugReportForm) -> int:
         table="bug_reports",
         data=form.model_dump(),
     )
-    return result["last_insert_rowid"]
+    return result["id"]
 
 
 async def get_list(page: int) -> list[BugReport]:
     conn = AppState().conn
-    result = await db.get_list(
+    limit = AppState().config.PAGE_LIMIT
+    offset = max(page - 1, 0) * limit
+    result = await db.get_raw(
         conn,
-        "bug_reports",
-        order=["solved", "id"],
-        limit=AppState().config.PAGE_LIMIT,
-        page=page
+        """
+        SELECT *
+        FROM bug_reports
+        ORDER BY solved, id
+        LIMIT $1 OFFSET $2
+        """,
+        [limit, offset],
     )
     if not result:
         return []

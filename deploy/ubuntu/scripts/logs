@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
+  cat <<'EOF'
+Usage:
+  logs [journalctl options]
+
+Examples:
+  logs -n 80
+  logs -f
+  logs -n 200 --since "1 hour ago"
+
+Shows logs for:
+  - arma-stat-counter-bot
+  - arma-stat-counter-web
+EOF
+  exit 0
+fi
+
+exec journalctl -u arma-stat-counter-bot -u arma-stat-counter-web "$@"

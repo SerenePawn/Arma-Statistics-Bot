@@ -1,17 +1,48 @@
-from datetime import datetime, time
+from datetime import date, datetime, time
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
+
+from logic.schedules.recurrence import RecurrenceType
 
 
 class SchedulePresetForm(BaseModel):
-    game_name: str
+    name: str
+    game_id: int | None = None
     game_time: str
     game_day_of_week: int
+    recurrence_type: RecurrenceType = RecurrenceType.WEEKLY
+    recurrence_date: date | None = None
+    day_of_month: int | None = None
 
     @field_validator("game_time", mode="before")
     @classmethod
-    def transform_time(cls, v: time) -> str:
-        return v.strftime('%H:%M:00')
+    def transform_time(cls, v: time | str) -> str:
+        if isinstance(v, time):
+            return v.strftime("%H:%M:00")
+        return v
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v: str) -> str:
+        clean = v.strip()
+        if not clean:
+            raise ValueError("Event title is required")
+        return clean
+
+    @model_validator(mode="after")
+    def validate_recurrence(self) -> "SchedulePresetForm":
+        if self.recurrence_type == RecurrenceType.WEEKLY:
+            if not 0 <= self.game_day_of_week <= 6:
+                raise ValueError("Weekday must be between 0 and 6")
+            return self
+        if self.recurrence_type == RecurrenceType.MONTHLY:
+            if self.day_of_month is None or not 1 <= self.day_of_month <= 31:
+                raise ValueError("Day of month must be between 1 and 31")
+            return self
+        if self.recurrence_date is None:
+            raise ValueError("Date is required for one-time events")
+        self.game_day_of_week = self.recurrence_date.weekday()
+        return self
 
 
 class ScheduleForm(BaseModel):
@@ -23,9 +54,14 @@ class ScheduleForm(BaseModel):
 class SchedulePreset(BaseModel):
     id: int
     squad_id: int
-    game_name: str
+    name: str | None = None
+    game_id: int | None = None
+    game_title: str | None = None
     game_time: time
     game_day_of_week: int
+    recurrence_type: RecurrenceType = RecurrenceType.WEEKLY
+    recurrence_date: date | None = None
+    day_of_month: int | None = None
     created_at: datetime
 
     @field_validator("game_time", mode="before")

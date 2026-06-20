@@ -182,6 +182,8 @@ celerybeat.pid
 
 # Environments
 .env
+.env.*
+!.env.example
 .venv
 env/
 venv/
@@ -223,7 +225,17 @@ logs/
 .idea/
 /compose-dev_fc.yaml
 tmp/
+pgsql/
+db_data/
+logfile
 TEST*
 config.ini
 /db/arma_bot.db
 *.bat
+
+# server-only deployment artifacts
+/deploy/server/
+*.local
+*.override
+removed_features_logic.txt
+web_app_design_guide.txt
