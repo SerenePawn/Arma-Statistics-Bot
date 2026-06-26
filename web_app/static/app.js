@@ -940,7 +940,12 @@ function renderMainMenu() {
     }
 
     const { type, items } = menuItemConfig();
-    mainMenuGrid.className = type === "solo" ? "menu-grid menu-grid--solo" : "menu-grid";
+    const squadGroupMenu = isSquadChatLaunch() && type === "member";
+    mainMenuGrid.className = type === "solo"
+        ? "menu-grid menu-grid--solo"
+        : squadGroupMenu
+            ? "menu-grid menu-grid--squad"
+            : "menu-grid";
 
     const dmBackButton = isPersonalLaunch() && dmActiveSquadId != null
         ? `<button class="ghost-button dm-squad-back" type="button">← Мои отряды</button>`

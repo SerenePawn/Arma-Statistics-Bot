@@ -71,6 +71,25 @@ async def resolve_squad_access(
     return "outsider"
 
 
+async def has_registered_admin(
+    conn: asyncpg.Connection,
+    bot: Bot,
+    squad_id: int,
+) -> bool:
+    chat_id = await get_telegram_chat_id_by_squad_id(conn, squad_id)
+    if chat_id is None:
+        return False
+
+    rows = await conn.fetch(
+        "SELECT telegram_id FROM players WHERE squad_id = $1",
+        squad_id,
+    )
+    for row in rows:
+        if await is_chat_admin(bot, chat_id, row["telegram_id"]):
+            return True
+    return False
+
+
 def squad_relation_for_ui(access: SquadAccess, has_pending: bool) -> str:
     if access == "blocked":
         return "blocked"

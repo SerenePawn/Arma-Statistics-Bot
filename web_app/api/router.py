@@ -481,9 +481,10 @@ async def unregister_player(
     squad_id: int,
     conn: asyncpg.Connection = Depends(get_db),
     telegram_user: TelegramUser = Depends(get_telegram_user),
+    bot: Bot = Depends(get_bot),
 ) -> None:
     try:
-        await repository.unregister_player(conn, telegram_user.id, squad_id)
+        await squad_ops.leave_squad_self(conn, bot, telegram_user.id, squad_id)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 

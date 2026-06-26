@@ -1,4 +1,5 @@
 import asyncpg
+from asyncpg import UndefinedTableError
 
 from core.db.db import record_to_model, record_to_model_list
 from logic.squads.chat_lookup import get_squad_id_by_telegram_chat_id, table_columns
@@ -197,3 +198,58 @@ async def remove_player_from_all_friends(conn: asyncpg.Connection, player_id: in
             data={"friends_ids": [friend_id for friend_id in friends_ids if friend_id != player_id]},
             with_updated_at=False,
         )
+
+
+async def _delete_squad_presets(
+    conn: asyncpg.Connection,
+    squad_id: int,
+    chatters_id: int | None,
+) -> None:
+    preset_cols = await table_columns(conn, "schedules_presets")
+    if "squad_id" in preset_cols:
+        preset_rows = await conn.fetch(
+            "SELECT id FROM schedules_presets WHERE squad_id = $1",
+            squad_id,
+        )
+    elif chatters_id is not None and "chatters_id" in preset_cols:
+        preset_rows = await conn.fetch(
+            "SELECT id FROM schedules_presets WHERE chatters_id = $1",
+            chatters_id,
+        )
+    else:
+        return
+
+    for row in preset_rows:
+        preset_id = row["id"]
+        await conn.execute("DELETE FROM attendances WHERE schedule_preset_id = $1", preset_id)
+        await conn.execute("DELETE FROM schedules WHERE schedule_preset_id = $1", preset_id)
+        await conn.execute("DELETE FROM schedules_presets WHERE id = $1", preset_id)
+
+
+async def delete_squad(conn: asyncpg.Connection, squad_id: int) -> bool:
+    from logic.users import db as users_db
+
+    squad = await get(conn, squad_id)
+    if not squad:
+        return False
+
+    await _delete_squad_presets(conn, squad_id, squad.chatters_id)
+
+    player_rows = await conn.fetch(
+        "SELECT id, telegram_id FROM players WHERE squad_id = $1",
+        squad_id,
+    )
+    for player in player_rows:
+        await conn.execute("DELETE FROM attendances WHERE player_id = $1", player["id"])
+        await conn.execute("DELETE FROM schedules WHERE player_id = $1", player["id"])
+        await users_db.reassign_primary_after_leave(conn, player["telegram_id"], squad_id)
+
+    await conn.execute("DELETE FROM players WHERE squad_id = $1", squad_id)
+
+    try:
+        await conn.execute("DELETE FROM usage_statistics WHERE squad_id = $1", squad_id)
+    except UndefinedTableError:
+        pass
+
+    await conn.execute("DELETE FROM squads WHERE id = $1", squad_id)
+    return True

@@ -12,6 +12,7 @@ from logic.squad_requests.models import RequestStatus, RequestType
 from logic.squads.chat_lookup import create_squad_for_chat, get_telegram_chat_id_by_squad_id
 from logic.squads import db as squads_db
 from logic.squads.access import (
+    has_registered_admin,
     resolve_squad_access,
     squad_relation_for_ui,
 )
@@ -264,6 +265,30 @@ async def remove_squad_member(
         squad_id,
     )
     await repository.reassign_primary_after_leave(conn, target_telegram_id, squad_id)
+
+
+async def maybe_delete_squad_if_no_admins(
+    conn: asyncpg.Connection,
+    bot: Bot,
+    squad_id: int,
+) -> bool:
+    squad = await repository.get_squad(conn, squad_id)
+    if not squad:
+        return False
+    if await has_registered_admin(conn, bot, squad_id):
+        return False
+    await squads_db.delete_squad(conn, squad_id)
+    return True
+
+
+async def leave_squad_self(
+    conn: asyncpg.Connection,
+    bot: Bot,
+    telegram_id: int,
+    squad_id: int,
+) -> None:
+    await repository.unregister_player(conn, telegram_id, squad_id)
+    await maybe_delete_squad_if_no_admins(conn, bot, squad_id)
 
 
 async def list_squad_friends(
