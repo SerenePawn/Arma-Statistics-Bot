@@ -16,6 +16,7 @@ from .schemas import (
     MeOut,
     PlayerOut,
     PrimarySquadIn,
+    PlayerNameUpdateIn,
     CreateSquadFromChatIn,
     RegisterPlayerIn,
     SchedulePresetOut,
@@ -253,6 +254,26 @@ async def set_primary_squad(
         await squad_ops.set_primary_squad_for_user(conn, telegram_user.id, payload.squad_id)
     except Exception as exc:
         raise_api_error(exc)
+    me = await repository.get_me(conn, telegram_user)
+    me = await squad_ops.enrich_me(conn, bot, me, telegram_user)
+    return {
+        **me,
+        "memberships": [player_out(m) for m in me["memberships"]],
+        "player": player_out(me["player"]),
+    }
+
+
+@router.put("/me/player-name", response_model=MeOut)
+async def set_player_name(
+    payload: PlayerNameUpdateIn,
+    conn: asyncpg.Connection = Depends(get_db),
+    telegram_user: TelegramUser = Depends(get_telegram_user),
+    bot: Bot = Depends(get_bot),
+) -> dict[str, Any]:
+    try:
+        await repository.update_player_name(conn, telegram_user.id, payload.name)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     me = await repository.get_me(conn, telegram_user)
     me = await squad_ops.enrich_me(conn, bot, me, telegram_user)
     return {

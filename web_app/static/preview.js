@@ -89,6 +89,22 @@
             return clone(previewState.me);
         }
 
+        if (path === "/api/v1/me/player-name" && method === "PUT") {
+            const body = JSON.parse(options.body || "{}");
+            const nextName = String(body.name || "").trim();
+            previewState.me.memberships = previewState.me.memberships.map((membership) => ({
+                ...membership,
+                name: nextName,
+            }));
+            if (previewState.me.player) {
+                previewState.me.player = {
+                    ...previewState.me.player,
+                    name: nextName,
+                };
+            }
+            return clone(previewState.me);
+        }
+
         if (path.startsWith("/api/v1/attendances") && method === "GET") {
             let items = clone(previewState.attendances).map((item) => {
                 const weeklyStatus = item.weekly_attend_status ?? null;

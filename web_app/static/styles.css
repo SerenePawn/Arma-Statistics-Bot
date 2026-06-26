@@ -416,6 +416,18 @@ textarea:disabled {
     text-align: center;
 }
 
+.menu-button--soft {
+    background: color-mix(in srgb, var(--text) 7%, transparent);
+    color: color-mix(in srgb, var(--text) 80%, var(--hint));
+    font-weight: 600;
+    border: 1px solid color-mix(in srgb, var(--text) 11%, transparent);
+    box-shadow: none;
+}
+
+.menu-button--soft:not(:disabled):active {
+    background: color-mix(in srgb, var(--text) 11%, transparent);
+}
+
 .view-header {
     display: flex;
     align-items: center;
@@ -872,11 +884,80 @@ textarea:disabled {
     flex-wrap: wrap;
 }
 
-.identity-line {
+.identity-bar {
     margin: 0 0 12px;
     color: var(--hint);
     font-size: 14px;
     line-height: 1.45;
+}
+
+.identity-bar-inner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.identity-bar-inner--group {
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.identity-text {
+    min-width: 0;
+    color: var(--hint);
+}
+
+.identity-squads {
+    flex-shrink: 0;
+    color: var(--hint);
+}
+
+.identity-separator {
+    flex-shrink: 0;
+    color: var(--hint);
+}
+
+.identity-name-input {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    padding: 8px 10px;
+    border: 1px solid color-mix(in srgb, var(--text) 14%, transparent);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--text) 5%, var(--card));
+    color: var(--text);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.identity-name-input:focus {
+    outline: none;
+    border-color: color-mix(in srgb, var(--button) 55%, transparent);
+}
+
+.identity-settings-button {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--text) 7%, transparent);
+    color: color-mix(in srgb, var(--text) 82%, var(--hint));
+    cursor: pointer;
+}
+
+.identity-settings-button:active {
+    background: color-mix(in srgb, var(--text) 11%, transparent);
+}
+
+.identity-settings-icon {
+    display: block;
 }
 
 .context-banner {
@@ -1110,15 +1191,6 @@ textarea:disabled {
     flex: 1;
     min-height: 96px;
     height: 100%;
-    background: color-mix(in srgb, var(--text) 7%, transparent);
-    color: color-mix(in srgb, var(--text) 80%, var(--hint));
-    font-weight: 600;
-    border: 1px solid color-mix(in srgb, var(--text) 11%, transparent);
-    box-shadow: none;
-}
-
-.menu-grid--squad .menu-button:not(:disabled):active {
-    background: color-mix(in srgb, var(--text) 11%, transparent);
 }
 
 .menu-item-wrap {

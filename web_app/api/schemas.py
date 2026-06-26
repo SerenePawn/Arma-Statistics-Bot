@@ -65,6 +65,10 @@ class PrimarySquadIn(BaseModel):
     squad_id: int | None = None
 
 
+class PlayerNameUpdateIn(BaseModel):
+    name: str = Field(min_length=1, max_length=50)
+
+
 class GamesUpdateIn(BaseModel):
     game_ids: list[int] = Field(default_factory=list)
     main_game_ids: list[int] = Field(default_factory=list)

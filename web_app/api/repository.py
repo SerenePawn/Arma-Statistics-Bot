@@ -558,6 +558,26 @@ async def register_player(
     return player
 
 
+async def update_player_name(
+    conn: asyncpg.Connection,
+    telegram_id: int,
+    name: str,
+) -> None:
+    clean_name = name.strip()
+    if not clean_name:
+        raise ValueError("Player name is required")
+
+    memberships = await list_memberships(conn, telegram_id)
+    if not memberships:
+        raise ValueError("Player is not registered")
+
+    await conn.execute(
+        "UPDATE players SET name = $1 WHERE telegram_id = $2",
+        clean_name,
+        telegram_id,
+    )
+
+
 async def unregister_solo_player(conn: asyncpg.Connection, telegram_id: int) -> None:
     member = await get_solo_player(conn, telegram_id)
     if not member:

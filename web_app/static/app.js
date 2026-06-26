@@ -9,7 +9,7 @@ const statusEl = document.querySelector("#status");
 const statusMessageEl = document.querySelector("#status-message");
 const statusActionEl = document.querySelector("#status-action");
 const contextBanner = document.querySelector("#context-banner");
-const identityLine = document.querySelector("#identity-line");
+const identityBar = document.querySelector("#identity-bar");
 const profileControls = document.querySelector("#profile-controls");
 const gameSelectorEl = document.querySelector("#game-selector");
 const mainMenu = document.querySelector("#main-menu");
@@ -52,6 +52,7 @@ let currentView = "home";
 let selectedGameId = null;
 let dockMode = false;
 let dmActiveSquadId = null;
+let personalMenuFromGroup = false;
 let appScenario = null;
 let scheduleWeekStart = null;
 
@@ -308,6 +309,14 @@ function isPersonalLaunch() {
     return !isSquadChatLaunch();
 }
 
+function isGroupChatLaunch() {
+    return launch?.source === "squad_chat";
+}
+
+function isPersonalMenuActive() {
+    return isPersonalLaunch() || personalMenuFromGroup;
+}
+
 function resolveLaunchContext(serverMe) {
     const unsafe = tg?.initDataUnsafe || {};
     const chatType = unsafe.chat_type || "";
@@ -349,7 +358,7 @@ function shouldUseSoloMenuInContext() {
 }
 
 function shouldShowDmSquadPicker() {
-    return isPersonalLaunch() && squadMemberships().length > 0 && currentView === "home" && dmActiveSquadId == null;
+    return isPersonalMenuActive() && squadMemberships().length > 0 && currentView === "home" && dmActiveSquadId == null;
 }
 
 function isSoloGroupAdminNoSquad() {
@@ -368,7 +377,7 @@ function contextSquadId() {
     if (dockMode && me?.primary_squad_id) {
         return me.primary_squad_id;
     }
-    if (isPersonalLaunch() && dmActiveSquadId != null) {
+    if (isPersonalMenuActive() && dmActiveSquadId != null) {
         return dmActiveSquadId;
     }
     return me?.context_squad_id
@@ -418,15 +427,20 @@ function resolveAppScenario(currentMe, currentLaunch) {
     return isAdmin ? 8 : 3;
 }
 
-function buildIdentityText() {
+function getPlayerDisplayName() {
     if (!me?.memberships?.length) {
         return "";
     }
-
-    const playerName = me.player?.name
+    return me.player?.name
         || me.memberships.find((m) => m.squad_id == null)?.name
         || me.memberships[0]?.name
-        || "Игрок";
+        || "";
+}
+
+function buildIdentitySquadText() {
+    if (!me?.memberships?.length) {
+        return "";
+    }
 
     const squadParts = [];
     const primaryId = me.primary_squad_id;
@@ -445,18 +459,143 @@ function buildIdentityText() {
         squadParts.push("Одиночка");
     }
 
-    return `${squadParts.join(" / ")} — ${playerName}`;
+    return squadParts.join(" / ");
 }
 
-function renderIdentityLine() {
-    const text = buildIdentityText();
-    if (!text || !isRegistered()) {
-        identityLine.classList.add("hidden");
-        identityLine.textContent = "";
+function buildIdentityText() {
+    const squadText = buildIdentitySquadText();
+    const playerName = getPlayerDisplayName();
+    if (!squadText && !playerName) {
+        return "";
+    }
+    if (!squadText) {
+        return playerName;
+    }
+    if (!playerName) {
+        return squadText;
+    }
+    return `${squadText} — ${playerName}`;
+}
+
+const IDENTITY_GEAR_ICON = `
+    <svg class="identity-settings-icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+        <path fill="currentColor" d="M12 15.5A3.5 3.5 0 0 1 8.5 12 3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.53c.04-.32.07-.64.07-.97 0-.33-.03-.66-.07-1l2.11-1.63c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.31-.61-.22l-2.49 1c-.52-.39-1.06-.73-1.69-.98l-.37-2.65A.506.506 0 0 0 14 2h-4c-.25 0-.46.18-.5.42l-.37 2.65c-.63.25-1.17.59-1.69.98l-2.49-1c-.22-.09-.49 0-.61.22l-2 3.46c-.12.22-.07.49.12.64L4.57 11c-.04.34-.07.67-.07 1 0 .33.03.65.07.97l-2.11 1.66c-.19.15-.25.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1.01c.52.4 1.06.74 1.69.99l.37 2.65c.04.24.25.42.5.42h4c.25 0 .46-.18.5-.42l.37-2.65c.63-.26 1.17-.59 1.69-.99l2.49 1.01c.22.08.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.66z"/>
+    </svg>
+`;
+
+async function saveIdentityNameInput(input) {
+    const nextName = input.value.trim();
+    const prevName = getPlayerDisplayName();
+    if (!nextName) {
+        input.value = prevName;
+        setStatus("Введите игровой ник.", true);
         return;
     }
-    identityLine.textContent = text;
-    identityLine.classList.remove("hidden");
+    if (nextName === prevName) {
+        return;
+    }
+    try {
+        me = await api("/api/v1/me/player-name", {
+            method: "PUT",
+            body: JSON.stringify({ name: nextName }),
+        });
+        appScenario = resolveAppScenario(me, launch);
+        renderShell();
+        setStatus("Ник обновлён.");
+    } catch (error) {
+        input.value = prevName;
+        showErrorToast(error);
+    }
+}
+
+function bindIdentityNameInput(input) {
+    if (!input || input.dataset.bound === "1") {
+        return;
+    }
+    input.dataset.bound = "1";
+    input.addEventListener("blur", () => {
+        void saveIdentityNameInput(input);
+    });
+    input.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+            event.preventDefault();
+            input.blur();
+        }
+    });
+}
+
+function renderIdentityBar() {
+    if (!identityBar) {
+        return;
+    }
+
+    const squadText = buildIdentitySquadText();
+    const playerName = getPlayerDisplayName();
+    if ((!squadText && !playerName) || !isRegistered()) {
+        identityBar.classList.add("hidden");
+        identityBar.innerHTML = "";
+        return;
+    }
+
+    const existingInput = identityBar.querySelector(".identity-name-input");
+    const isEditing = existingInput && document.activeElement === existingInput;
+
+    if (isPersonalMenuActive()) {
+        if (isEditing) {
+            const squadEl = identityBar.querySelector(".identity-squads");
+            if (squadEl) {
+                squadEl.textContent = squadText;
+            }
+            identityBar.classList.remove("hidden");
+            return;
+        }
+
+        identityBar.className = "identity-bar identity-bar--personal";
+        identityBar.innerHTML = `
+            <div class="identity-bar-inner">
+                <span class="identity-squads">${escapeHtml(squadText)}</span>
+                <span class="identity-separator" aria-hidden="true">—</span>
+                <input
+                    class="identity-name-input"
+                    type="text"
+                    maxlength="50"
+                    value="${escapeHtml(playerName)}"
+                    autocomplete="off"
+                    spellcheck="false"
+                    aria-label="Игровой ник"
+                >
+            </div>
+        `;
+        bindIdentityNameInput(identityBar.querySelector(".identity-name-input"));
+        identityBar.classList.remove("hidden");
+        return;
+    }
+
+    if (isGroupChatLaunch()) {
+        identityBar.className = "identity-bar identity-bar--group";
+        identityBar.innerHTML = `
+            <div class="identity-bar-inner identity-bar-inner--group">
+                <span class="identity-text">${escapeHtml(buildIdentityText())}</span>
+                <button
+                    class="identity-settings-button"
+                    type="button"
+                    aria-label="Личное меню"
+                    title="Личное меню"
+                >${IDENTITY_GEAR_ICON}</button>
+            </div>
+        `;
+        identityBar.querySelector(".identity-settings-button")?.addEventListener("click", () => {
+            personalMenuFromGroup = true;
+            dmActiveSquadId = null;
+            renderShell();
+        });
+        identityBar.classList.remove("hidden");
+        return;
+    }
+
+    identityBar.className = "identity-bar";
+    identityBar.textContent = buildIdentityText();
+    identityBar.classList.remove("hidden");
 }
 
 function renderContextBanner() {
@@ -699,7 +838,7 @@ function menuItemConfig() {
     const hasContext = contextSquadId() != null;
     const canScheduleMember = relation === "member" || relation === "friend";
     const isAdmin = Boolean(me?.is_admin_of_squad_id || me?.is_squad_admin);
-    const dmSquadId = isPersonalLaunch() ? dmActiveSquadId : null;
+    const dmSquadId = isPersonalMenuActive() ? dmActiveSquadId : null;
     const dmIsAdmin = dmSquadId != null && (
         me?.is_admin_of_squad_id === dmSquadId
         || (me?.is_squad_admin && me?.primary_squad_id === dmSquadId)
@@ -849,7 +988,7 @@ function renderDmSquadPickerHtml() {
                         <div class="dm-squad-card-actions">
                             <div class="dm-squad-split-button">
                                 <button
-                                    class="menu-button dm-squad-open"
+                                    class="menu-button menu-button--soft dm-squad-open"
                                     type="button"
                                     data-squad-id="${membership.squad_id}"
                                 >Открыть</button>
@@ -940,21 +1079,25 @@ function renderMainMenu() {
     }
 
     const { type, items } = menuItemConfig();
-    const squadGroupMenu = isSquadChatLaunch() && type === "member";
+    const squadGroupMenu = isSquadChatLaunch() && type === "member" && !personalMenuFromGroup;
     mainMenuGrid.className = type === "solo"
         ? "menu-grid menu-grid--solo"
         : squadGroupMenu
             ? "menu-grid menu-grid--squad"
             : "menu-grid";
 
-    const dmBackButton = isPersonalLaunch() && dmActiveSquadId != null
-        ? `<button class="ghost-button dm-squad-back" type="button">← Мои отряды</button>`
+    const groupMenuBack = personalMenuFromGroup && isGroupChatLaunch()
+        ? `<button class="ghost-button dm-squad-back" type="button" data-action="group-menu-back">← Групповое меню</button>`
         : "";
 
-    mainMenuGrid.innerHTML = dmBackButton + items.map((item) => `
+    const dmBackButton = isPersonalMenuActive() && dmActiveSquadId != null
+        ? `<button class="ghost-button dm-squad-back" type="button" data-action="dm-squad-back">← Мои отряды</button>`
+        : "";
+
+    mainMenuGrid.innerHTML = groupMenuBack + dmBackButton + items.map((item) => `
         <div class="menu-item-wrap">
             <button
-                class="menu-button"
+                class="menu-button${squadGroupMenu ? " menu-button--soft" : ""}"
                 type="button"
                 data-view="${item.view || ""}"
                 data-action="${item.action || ""}"
@@ -968,7 +1111,13 @@ function renderMainMenu() {
         </div>
     `).join("");
 
-    mainMenuGrid.querySelector(".dm-squad-back")?.addEventListener("click", () => {
+    mainMenuGrid.querySelector("[data-action='group-menu-back']")?.addEventListener("click", () => {
+        personalMenuFromGroup = false;
+        dmActiveSquadId = null;
+        renderShell();
+    });
+
+    mainMenuGrid.querySelector("[data-action='dm-squad-back']")?.addEventListener("click", () => {
         dmActiveSquadId = null;
         selectedGameId = null;
         renderShell();
@@ -1020,7 +1169,7 @@ function renderShell() {
         return;
     }
     renderContextBanner();
-    renderIdentityLine();
+    renderIdentityBar();
     renderProfileControls();
     renderMainMenu();
 }
@@ -1037,7 +1186,7 @@ function syncViewChrome() {
     mainMenu.classList.add("hidden");
     viewHeader.classList.remove("hidden");
     profileControls.classList.add("hidden");
-    identityLine.classList.add("hidden");
+    identityBar?.classList.add("hidden");
     contextBanner.classList.add("hidden");
 
     if (currentView === "add-squad") {
@@ -1061,6 +1210,7 @@ function showHome() {
     currentView = "home";
     dockMode = false;
     dmActiveSquadId = null;
+    personalMenuFromGroup = false;
     syncViewChrome();
     renderShell();
 }
@@ -2580,7 +2730,7 @@ async function load() {
             mainMenu.classList.add("hidden");
             content.classList.add("hidden");
             contextBanner.classList.add("hidden");
-            identityLine.classList.add("hidden");
+            identityBar?.classList.add("hidden");
             profileControls.classList.add("hidden");
             gameSelectorEl.classList.add("hidden");
             await renderRegistration();
