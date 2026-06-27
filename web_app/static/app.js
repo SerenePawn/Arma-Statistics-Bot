@@ -832,9 +832,16 @@ function renderGameSelector() {
     });
 }
 
+function shouldUseGroupMenuForSquad(squadId) {
+    return isGroupChatLaunch()
+        && launch?.squad_id != null
+        && squadId === launch.squad_id;
+}
+
 function menuItemConfig() {
     const relation = me?.squad_relation;
-    const inForeign = isForeignChatContext() && !dockMode;
+    const inPersonalSquadPick = isPersonalMenuActive() && dmActiveSquadId != null;
+    const inForeign = isForeignChatContext() && !dockMode && !inPersonalSquadPick;
     const hasContext = contextSquadId() != null;
     const canScheduleMember = relation === "member" || relation === "friend";
     const isAdmin = Boolean(me?.is_admin_of_squad_id || me?.is_squad_admin);
@@ -1011,7 +1018,13 @@ function renderDmSquadPickerHtml() {
 function bindDmSquadPicker() {
     mainMenuGrid.querySelectorAll(".dm-squad-open").forEach((button) => {
         button.addEventListener("click", () => {
-            dmActiveSquadId = Number(button.dataset.squadId);
+            const squadId = Number(button.dataset.squadId);
+            if (personalMenuFromGroup && shouldUseGroupMenuForSquad(squadId)) {
+                personalMenuFromGroup = false;
+                dmActiveSquadId = null;
+            } else {
+                dmActiveSquadId = squadId;
+            }
             selectedGameId = null;
             renderShell();
         });
@@ -1086,7 +1099,7 @@ function renderMainMenu() {
             ? "menu-grid menu-grid--squad"
             : "menu-grid";
 
-    const groupMenuBack = personalMenuFromGroup && isGroupChatLaunch()
+    const groupMenuBack = personalMenuFromGroup && isGroupChatLaunch() && dmActiveSquadId != null
         ? `<button class="ghost-button dm-squad-back" type="button" data-action="group-menu-back">← Групповое меню</button>`
         : "";
 
