@@ -1092,10 +1092,10 @@ function renderMainMenu() {
     }
 
     const { type, items } = menuItemConfig();
-    const squadGroupMenu = isSquadChatLaunch() && type === "member" && !personalMenuFromGroup;
+    const squadMemberMenu = type === "member";
     mainMenuGrid.className = type === "solo"
         ? "menu-grid menu-grid--solo"
-        : squadGroupMenu
+        : squadMemberMenu
             ? "menu-grid menu-grid--squad"
             : "menu-grid";
 
@@ -1110,7 +1110,7 @@ function renderMainMenu() {
     mainMenuGrid.innerHTML = groupMenuBack + dmBackButton + items.map((item) => `
         <div class="menu-item-wrap">
             <button
-                class="menu-button${squadGroupMenu ? " menu-button--soft" : ""}"
+                class="menu-button${squadMemberMenu ? " menu-button--soft" : ""}"
                 type="button"
                 data-view="${item.view || ""}"
                 data-action="${item.action || ""}"
