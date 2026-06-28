@@ -77,6 +77,7 @@ async def enrich_me(
     is_squad_admin = False
     is_admin_of_squad_id = None
     squad_relation = None
+    pending_request_type = None
     default_game_id = None
 
     for membership in me.get("memberships", []):
@@ -92,6 +93,8 @@ async def enrich_me(
     if context_squad_id is not None:
         access = await resolve_squad_access(conn, bot, me["telegram_id"], context_squad_id)
         pending = await squad_requests_db.get_pending(conn, context_squad_id, me["telegram_id"])
+        if pending is not None:
+            pending_request_type = pending.request_type.value
         squad_relation = squad_relation_for_ui(access, pending is not None)
         if context_squad_id == primary_squad_id:
             is_squad_admin = access == "admin"
@@ -114,6 +117,7 @@ async def enrich_me(
         "is_squad_admin": is_squad_admin,
         "is_admin_of_squad_id": is_admin_of_squad_id,
         "squad_relation": squad_relation,
+        "pending_request_type": pending_request_type,
         "launch_source": launch_source,
         "launch_squad_id": launch_squad_id,
         "can_create_squad": can_create_squad,

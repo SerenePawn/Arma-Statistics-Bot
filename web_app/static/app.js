@@ -1088,7 +1088,8 @@ function menuItemConfig() {
         const isFriend = relation === "friend";
         const isOutsider = hasContext && !pending && !blocked && !isFriend && relation !== "member";
         const friendRequestDisabled = noContext || pending || blocked || isFriend || relation === "member";
-        const joinRequestDisabled = noContext || pending || blocked || relation === "member";
+        const hasPendingJoinRequest = me?.pending_request_type === "join";
+        const joinRequestDisabled = noContext || pending || blocked || relation === "member" || hasPendingJoinRequest;
 
         const items = [
             {
@@ -1151,7 +1152,7 @@ function menuItemConfig() {
             disabled: joinRequestDisabled,
             hint: noContext
                 ? noContextHint
-                : pending
+                : hasPendingJoinRequest || pending
                     ? "Заявка на рассмотрении"
                     : blocked
                         ? "Доступ закрыт"

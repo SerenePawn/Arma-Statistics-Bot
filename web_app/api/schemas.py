@@ -45,6 +45,7 @@ class MeOut(BaseModel):
     is_squad_admin: bool = False
     is_admin_of_squad_id: int | None = None
     squad_relation: str | None = None
+    pending_request_type: str | None = None
     launch_source: str = "dm"
     launch_squad_id: int | None = None
     can_create_squad: bool = False
