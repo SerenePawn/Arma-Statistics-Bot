@@ -1,5 +1,6 @@
 from typing import Any
-from datetime import date
+from datetime import date, datetime, timezone
+import hmac
 
 import asyncpg
 from aiogram import Bot
@@ -11,6 +12,8 @@ from .schemas import (
     AttendanceSummaryOut,
     AttendanceUpdateIn,
     BlockedUserOut,
+    DebugUnlockIn,
+    DebugUnlockOut,
     GameOut,
     GamesUpdateIn,
     MeOut,
@@ -30,16 +33,19 @@ from .schemas import (
     SquadRequestIn,
     SquadRequestOut,
 )
-from ..core.dependencies import get_bot, get_db, get_telegram_user
+from ..core.dependencies import activate_debug_admin, debug_mode_enabled, get_bot, get_db, get_telegram_user
+from ..core.debug_token import create_debug_token
 from ..core.permissions import SquadPermissionError
 from ..core.security import TelegramUser
+from ..core.state import state
 from logic.squad_requests import db as squad_requests_db
 from logic.squad_requests.models import RequestType
 from logic.squads.access import is_squad_friend, resolve_squad_access
 from logic.squads.chat_lookup import get_telegram_chat_id_by_squad_id
+from logic.telegram.debug_context import get_debug_admin_telegram_id, set_debug_admin_telegram_id
 from logic.telegram.permissions import is_chat_admin
 
-router = APIRouter(prefix="/api/v1")
+router = APIRouter(prefix="/api/v1", dependencies=[Depends(activate_debug_admin)])
 
 PERMISSION_STATUS = {
     "access_denied": status.HTTP_403_FORBIDDEN,
@@ -56,6 +62,15 @@ PERMISSION_STATUS = {
 
 def player_out(player: dict[str, Any] | None) -> PlayerOut | None:
     return PlayerOut.model_validate(player) if player else None
+
+
+def build_me_response(me: dict[str, Any], telegram_user: TelegramUser) -> dict[str, Any]:
+    return {
+        **me,
+        "memberships": [player_out(m) for m in me["memberships"]],
+        "player": player_out(me["player"]),
+        "is_debug_admin": get_debug_admin_telegram_id() == telegram_user.id,
+    }
 
 
 def raise_api_error(exc: Exception) -> None:
@@ -235,11 +250,38 @@ async def get_me(
 ) -> dict[str, Any]:
     me = await repository.get_me(conn, telegram_user)
     me = await squad_ops.enrich_me(conn, bot, me, telegram_user)
+    return build_me_response(me, telegram_user)
+
+
+@router.post("/debug/unlock", response_model=DebugUnlockOut)
+async def debug_unlock(
+    payload: DebugUnlockIn,
+    telegram_user: TelegramUser = Depends(get_telegram_user),
+) -> dict[str, Any]:
+    if not debug_mode_enabled() or state.settings is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+
+    expected_code = state.settings.WEB_APP_DEBUG_CODE.strip()
+    if not hmac.compare_digest(payload.code.strip(), expected_code):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="invalid_code")
+
+    ttl_seconds = max(1, state.settings.WEB_APP_DEBUG_TOKEN_TTL_SECONDS)
+    token, expires_at = create_debug_token(
+        telegram_user.id,
+        state.settings.API_TOKEN,
+        ttl_seconds,
+    )
+    set_debug_admin_telegram_id(telegram_user.id)
     return {
-        **me,
-        "memberships": [player_out(m) for m in me["memberships"]],
-        "player": player_out(me["player"]),
+        "token": token,
+        "expires_at": datetime.fromtimestamp(expires_at, tz=timezone.utc),
     }
+
+
+@router.post("/debug/lock", status_code=status.HTTP_204_NO_CONTENT)
+async def debug_lock() -> None:
+    if not debug_mode_enabled():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
 
 
 @router.put("/me/primary-squad", response_model=MeOut)
@@ -256,11 +298,7 @@ async def set_primary_squad(
         raise_api_error(exc)
     me = await repository.get_me(conn, telegram_user)
     me = await squad_ops.enrich_me(conn, bot, me, telegram_user)
-    return {
-        **me,
-        "memberships": [player_out(m) for m in me["memberships"]],
-        "player": player_out(me["player"]),
-    }
+    return build_me_response(me, telegram_user)
 
 
 @router.put("/me/player-name", response_model=MeOut)
@@ -276,11 +314,7 @@ async def set_player_name(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     me = await repository.get_me(conn, telegram_user)
     me = await squad_ops.enrich_me(conn, bot, me, telegram_user)
-    return {
-        **me,
-        "memberships": [player_out(m) for m in me["memberships"]],
-        "player": player_out(me["player"]),
-    }
+    return build_me_response(me, telegram_user)
 
 
 @router.post("/squads/create-from-chat", response_model=SquadOut)

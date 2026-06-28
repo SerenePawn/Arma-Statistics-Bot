@@ -39,6 +39,13 @@ const confirmDialogMessage = document.querySelector("#confirm-dialog-message");
 const confirmDialogCancel = document.querySelector("#confirm-dialog-cancel");
 const confirmDialogConfirm = document.querySelector("#confirm-dialog-confirm");
 const confirmDialogBackdrop = confirmDialog?.querySelector(".confirm-dialog-backdrop");
+const debugPanel = document.querySelector("#debug-panel");
+const debugCodeInput = document.querySelector("#debug-code-input");
+const debugUnlockButton = document.querySelector("#debug-unlock-button");
+const debugLockButton = document.querySelector("#debug-lock-button");
+const debugPanelClose = document.querySelector("#debug-panel-close");
+const debugPanelUnlockSection = document.querySelector("#debug-panel-unlock");
+const debugPanelActiveSection = document.querySelector("#debug-panel-active");
 
 let confirmDialogResolve = null;
 
@@ -90,10 +97,42 @@ const authErrorMessages = {
     already_member: "Вы уже состоите в этом отряде.",
     squad_exists: "Отряд для этого чата уже создан.",
     game_has_dependencies: "Игра привязана к расписанию. Сначала отвяжите ее от связанных сущностей.",
+    invalid_code: "Неверный код доступа.",
 };
 
 function getInitData() {
     return tg?.initData?.trim() || "";
+}
+
+const DEBUG_TOKEN_STORAGE_KEY = "arma_debug_token";
+const DEBUG_NAME_TAP_TARGET = 10;
+const DEBUG_NAME_TAP_RESET_MS = 3000;
+
+let identityNameTapCount = 0;
+let identityNameTapTimer = null;
+
+function getStoredDebugToken() {
+    try {
+        return localStorage.getItem(DEBUG_TOKEN_STORAGE_KEY)?.trim() || "";
+    } catch {
+        return "";
+    }
+}
+
+function setStoredDebugToken(token) {
+    try {
+        localStorage.setItem(DEBUG_TOKEN_STORAGE_KEY, token);
+    } catch {
+        // ignore storage errors
+    }
+}
+
+function clearStoredDebugToken() {
+    try {
+        localStorage.removeItem(DEBUG_TOKEN_STORAGE_KEY);
+    } catch {
+        // ignore storage errors
+    }
 }
 
 const TOAST_DURATION_MS = 5000;
@@ -477,6 +516,107 @@ function buildIdentityText() {
     return `${squadText} — ${playerName}`;
 }
 
+function buildIdentityNameElementHtml(playerName) {
+    if (!playerName) {
+        return "";
+    }
+    return `<span class="identity-player-name" role="button" tabindex="0">${escapeHtml(playerName)}</span>`;
+}
+
+function buildIdentityContentHtml() {
+    const squadText = buildIdentitySquadText();
+    const playerName = getPlayerDisplayName();
+    const squadPart = squadText ? `<span class="identity-squads">${escapeHtml(squadText)}</span>` : "";
+    const separator = squadText && playerName
+        ? `<span class="identity-separator" aria-hidden="true">—</span>`
+        : "";
+    const namePart = buildIdentityNameElementHtml(playerName);
+    return `${squadPart}${separator}${namePart}`;
+}
+
+function debugBadgeHtml() {
+    return me?.is_debug_admin ? '<span class="debug-badge" title="Режим отладки">DEBUG</span>' : "";
+}
+
+function onIdentityNameTap() {
+    identityNameTapCount += 1;
+    clearTimeout(identityNameTapTimer);
+    identityNameTapTimer = setTimeout(() => {
+        identityNameTapCount = 0;
+    }, DEBUG_NAME_TAP_RESET_MS);
+    if (identityNameTapCount >= DEBUG_NAME_TAP_TARGET) {
+        identityNameTapCount = 0;
+        openDebugPanel();
+    }
+}
+
+function registerIdentityNameEasterEgg() {
+    identityBar?.querySelectorAll(".identity-player-name").forEach((element) => {
+        element.addEventListener("click", onIdentityNameTap);
+    });
+}
+
+function updateDebugPanelState() {
+    const isActive = Boolean(me?.is_debug_admin);
+    debugPanelUnlockSection?.classList.toggle("hidden", isActive);
+    debugPanelActiveSection?.classList.toggle("hidden", !isActive);
+}
+
+function openDebugPanel() {
+    if (!debugPanel) {
+        return;
+    }
+    updateDebugPanelState();
+    debugPanel.classList.remove("hidden");
+    debugCodeInput?.focus();
+}
+
+function closeDebugPanel() {
+    debugPanel?.classList.add("hidden");
+    if (debugCodeInput) {
+        debugCodeInput.value = "";
+    }
+}
+
+async function unlockDebugMode() {
+    const code = debugCodeInput?.value?.trim();
+    if (!code) {
+        setStatus("Введите код доступа.", true);
+        return;
+    }
+
+    try {
+        const result = await api("/api/v1/debug/unlock", {
+            method: "POST",
+            body: JSON.stringify({ code }),
+        });
+        setStoredDebugToken(result.token);
+        me = await api("/api/v1/me");
+        appScenario = resolveAppScenario(me, launch);
+        updateDebugPanelState();
+        renderShell();
+        closeDebugPanel();
+        setStatus("Режим отладки включён.");
+    } catch (error) {
+        showErrorToast(error);
+    }
+}
+
+async function lockDebugMode() {
+    clearStoredDebugToken();
+    try {
+        await api("/api/v1/debug/lock", { method: "POST" });
+    } catch {
+        // local token already cleared
+    }
+    me = await api("/api/v1/me");
+    appScenario = resolveAppScenario(me, launch);
+    updateDebugPanelState();
+    renderShell();
+    closeDebugPanel();
+    setStatus("Режим отладки отключён.");
+}
+
 const IDENTITY_GEAR_ICON = `
     <svg class="identity-settings-icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
         <path fill="currentColor" d="M12 15.5A3.5 3.5 0 0 1 8.5 12 3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.53c.04-.32.07-.64.07-.97 0-.33-.03-.66-.07-1l2.11-1.63c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.31-.61-.22l-2.49 1c-.52-.39-1.06-.73-1.69-.98l-.37-2.65A.506.506 0 0 0 14 2h-4c-.25 0-.46.18-.5.42l-.37 2.65c-.63.25-1.17.59-1.69.98l-2.49-1c-.22-.09-.49 0-.61.22l-2 3.46c-.12.22-.07.49.12.64L4.57 11c-.04.34-.07.67-.07 1 0 .33.03.65.07.97l-2.11 1.66c-.19.15-.25.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1.01c.52.4 1.06.74 1.69.99l.37 2.65c.04.24.25.42.5.42h4c.25 0 .46-.18.5-.42l.37-2.65c.63-.26 1.17-.59 1.69-.99l2.49 1.01c.22.08.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.66z"/>
@@ -556,7 +696,7 @@ function renderIdentityBar() {
                 <span class="identity-squads">${escapeHtml(squadText)}</span>
                 <span class="identity-separator" aria-hidden="true">—</span>
                 <input
-                    class="identity-name-input"
+                    class="identity-name-input identity-player-name"
                     type="text"
                     maxlength="50"
                     value="${escapeHtml(playerName)}"
@@ -564,9 +704,11 @@ function renderIdentityBar() {
                     spellcheck="false"
                     aria-label="Игровой ник"
                 >
+                ${debugBadgeHtml()}
             </div>
         `;
         bindIdentityNameInput(identityBar.querySelector(".identity-name-input"));
+        registerIdentityNameEasterEgg();
         identityBar.classList.remove("hidden");
         return;
     }
@@ -575,7 +717,7 @@ function renderIdentityBar() {
         identityBar.className = "identity-bar identity-bar--group";
         identityBar.innerHTML = `
             <div class="identity-bar-inner identity-bar-inner--group">
-                <span class="identity-text">${escapeHtml(buildIdentityText())}</span>
+                <span class="identity-text">${buildIdentityContentHtml()}${debugBadgeHtml()}</span>
                 <button
                     class="identity-settings-button"
                     type="button"
@@ -589,12 +731,14 @@ function renderIdentityBar() {
             dmActiveSquadId = null;
             renderShell();
         });
+        registerIdentityNameEasterEgg();
         identityBar.classList.remove("hidden");
         return;
     }
 
     identityBar.className = "identity-bar";
-    identityBar.textContent = buildIdentityText();
+    identityBar.innerHTML = `<div class="identity-bar-inner">${buildIdentityContentHtml()}${debugBadgeHtml()}</div>`;
+    registerIdentityNameEasterEgg();
     identityBar.classList.remove("hidden");
 }
 
@@ -1300,6 +1444,11 @@ async function api(path, options = {}) {
         if (initData) {
             headers.Authorization = `tma ${initData}`;
             headers["X-Telegram-Init-Data"] = initData;
+        }
+
+        const debugToken = getStoredDebugToken();
+        if (debugToken) {
+            headers["X-Debug-Token"] = debugToken;
         }
 
         const response = await fetch(path, {
@@ -2728,6 +2877,9 @@ async function load() {
             await window.__previewLoad();
         } else {
             me = await api("/api/v1/me");
+            if (!me?.is_debug_admin && getStoredDebugToken()) {
+                clearStoredDebugToken();
+            }
             squads = await api("/api/v1/squads");
             launch = resolveLaunchContext(me);
         }
@@ -2783,6 +2935,24 @@ backButton?.addEventListener("click", showHome);
 registerButton?.addEventListener("click", registerPlayer);
 document.querySelector("#create-squad-button")?.addEventListener("click", createSquad);
 document.querySelector("#create-squad-home-button")?.addEventListener("click", showHome);
+debugUnlockButton?.addEventListener("click", () => {
+    void unlockDebugMode();
+});
+debugLockButton?.addEventListener("click", () => {
+    void lockDebugMode();
+});
+debugPanelClose?.addEventListener("click", closeDebugPanel);
+debugPanel?.addEventListener("click", (event) => {
+    if (event.target === debugPanel) {
+        closeDebugPanel();
+    }
+});
+debugCodeInput?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+        event.preventDefault();
+        void unlockDebugMode();
+    }
+});
 setupSquadPicker();
 
 window.AppShell = {

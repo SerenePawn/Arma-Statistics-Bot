@@ -16,7 +16,7 @@ from logic.squads.access import (
     resolve_squad_access,
     squad_relation_for_ui,
 )
-from logic.telegram.permissions import ADMIN_STATUSES, get_chat_member_status_and_display_name, is_chat_admin
+from logic.telegram.permissions import get_chat_member_status_and_display_name, is_chat_admin
 from web_app.core.permissions import SquadPermissionError
 from web_app.core.security import TelegramUser
 
@@ -213,12 +213,10 @@ async def list_squad_members(
         is_admin = False
         display_name = ""
         if chat_id is not None:
-            status, display_name = await get_chat_member_status_and_display_name(
-                bot,
-                chat_id,
-                player["telegram_id"],
-            )
-            is_admin = status in ADMIN_STATUSES if status is not None else False
+            display_name = (
+                await get_chat_member_status_and_display_name(bot, chat_id, player["telegram_id"])
+            )[1]
+            is_admin = await is_chat_admin(bot, chat_id, player["telegram_id"])
         result.append(
             {
                 "id": player["id"],

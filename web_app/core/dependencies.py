@@ -1,8 +1,11 @@
 from collections.abc import AsyncGenerator
 import asyncpg
 from aiogram import Bot
-from fastapi import Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 
+from logic.telegram.debug_context import set_debug_admin_telegram_id
+
+from .debug_token import verify_debug_token
 from .security import TelegramUser, validate_init_data
 from .state import state
 
@@ -42,6 +45,28 @@ async def get_telegram_user(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Telegram auth data required")
 
     return validate_init_data(init_data, state.settings.API_TOKEN)
+
+
+def debug_mode_enabled() -> bool:
+    settings = state.settings
+    if settings is None:
+        return False
+    return bool(settings.WEB_APP_DEBUG_CODE.strip())
+
+
+async def activate_debug_admin(
+    telegram_user: TelegramUser = Depends(get_telegram_user),
+    x_debug_token: str | None = Header(default=None, alias="X-Debug-Token"),
+) -> None:
+    if not debug_mode_enabled():
+        return
+
+    token = (x_debug_token or "").strip()
+    if not token or state.settings is None:
+        return
+
+    if verify_debug_token(token, telegram_user.id, state.settings.API_TOKEN):
+        set_debug_admin_telegram_id(telegram_user.id)
 
 
 async def get_bot() -> Bot:

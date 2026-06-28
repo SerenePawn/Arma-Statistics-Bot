@@ -2,6 +2,8 @@ from aiogram import Bot
 from aiogram.enums import ChatMemberStatus
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 
+from logic.telegram.debug_context import get_debug_admin_telegram_id
+
 ADMIN_STATUSES = frozenset({ChatMemberStatus.CREATOR, ChatMemberStatus.ADMINISTRATOR})
 
 
@@ -39,5 +41,7 @@ async def get_chat_member_status_and_display_name(
 
 
 async def is_chat_admin(bot: Bot, chat_id: int, user_id: int) -> bool:
+    if get_debug_admin_telegram_id() == user_id:
+        return True
     status = await get_chat_member_status(bot, chat_id, user_id)
     return status in ADMIN_STATUSES if status is not None else False

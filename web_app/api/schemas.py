@@ -49,6 +49,16 @@ class MeOut(BaseModel):
     launch_squad_id: int | None = None
     can_create_squad: bool = False
     default_game_id: int | None = None
+    is_debug_admin: bool = False
+
+
+class DebugUnlockIn(BaseModel):
+    code: str = Field(min_length=1, max_length=200)
+
+
+class DebugUnlockOut(BaseModel):
+    token: str
+    expires_at: datetime
 
 
 class CreateSquadFromChatIn(BaseModel):

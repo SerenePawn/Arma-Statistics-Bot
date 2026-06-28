@@ -934,6 +934,65 @@ textarea:disabled {
     border-color: color-mix(in srgb, var(--button) 55%, transparent);
 }
 
+.identity-player-name {
+    cursor: default;
+    color: var(--hint);
+}
+
+.debug-badge {
+    flex-shrink: 0;
+    margin-left: 8px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: rgba(255, 170, 0, 0.18);
+    color: #c98600;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    vertical-align: middle;
+}
+
+.debug-panel {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.45);
+}
+
+.debug-panel.hidden {
+    display: none;
+}
+
+.debug-panel-inner {
+    width: min(100%, 360px);
+    display: grid;
+    gap: 12px;
+}
+
+.debug-panel-title {
+    margin: 0;
+    font-size: 18px;
+}
+
+.debug-panel-section {
+    display: grid;
+    gap: 12px;
+}
+
+.debug-panel-hint {
+    margin: 0;
+    color: var(--hint);
+    font-size: 14px;
+}
+
+.debug-panel-close {
+    justify-self: start;
+}
+
 .identity-settings-button {
     flex-shrink: 0;
     display: inline-flex;

@@ -35,6 +35,8 @@ class BotSettings(BaseModel):
     WEB_APP_URI: str = "https://t.me/RE_ArmaBot/scheduler"
     WEB_APP_INIT_DATA_MAX_AGE_SECONDS: int = 86400
     WEB_APP_DEV_TELEGRAM_ID: int | None = None
+    WEB_APP_DEBUG_CODE: str = ""
+    WEB_APP_DEBUG_TOKEN_TTL_SECONDS: int = 604800
 
     @staticmethod
     def from_file(path: str | None = None) -> "BotSettings":
@@ -53,6 +55,8 @@ class BotSettings(BaseModel):
                 value = config.get(section, option).strip()
                 key = option.upper()
                 if key == "WEB_APP_DEV_TELEGRAM_ID" and not value:
+                    continue
+                if key == "WEB_APP_DEBUG_CODE" and not value:
                     continue
                 data[key] = value
 

@@ -6,7 +6,7 @@
     <title>Arma Stat Counter</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="/static/styles.css?v=21">
+    <link rel="stylesheet" href="/static/styles.css?v=22">
 </head>
 <body>
     <div id="loading-overlay" class="loading-overlay hidden" aria-live="polite" aria-label="Загрузка">
@@ -108,6 +108,26 @@
 
     <div id="toast-container" class="toast-container" aria-live="polite"></div>
 
+    <div id="debug-panel" class="debug-panel hidden" role="dialog" aria-labelledby="debug-panel-title" aria-modal="true">
+        <div class="debug-panel-inner card">
+            <h2 id="debug-panel-title" class="debug-panel-title">Отладка</h2>
+            <div id="debug-panel-unlock" class="debug-panel-section">
+                <div class="field">
+                    <label for="debug-code-input">
+                        <span class="label-text">Код доступа</span>
+                        <input id="debug-code-input" type="password" maxlength="200" autocomplete="off">
+                    </label>
+                </div>
+                <button id="debug-unlock-button" type="button">Активировать</button>
+            </div>
+            <div id="debug-panel-active" class="debug-panel-section hidden">
+                <p class="debug-panel-hint">Режим администратора активен.</p>
+                <button id="debug-lock-button" type="button" class="ghost-button">Отключить</button>
+            </div>
+            <button id="debug-panel-close" type="button" class="ghost-button debug-panel-close">Закрыть</button>
+        </div>
+    </div>
+
     <div id="confirm-dialog" class="confirm-dialog hidden" role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-message">
         <button type="button" class="confirm-dialog-backdrop" aria-label="Закрыть"></button>
         <div class="confirm-dialog-panel card">
@@ -121,6 +141,6 @@
 
     <script src="/static/preview-data.js?v=14"></script>
     <script src="/static/preview.js?v=19"></script>
-    <script src="/static/app.js?v=32"></script>
+    <script src="/static/app.js?v=33"></script>
 </body>
 </html>
