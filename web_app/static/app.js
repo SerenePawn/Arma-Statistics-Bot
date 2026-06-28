@@ -520,18 +520,22 @@ function buildIdentityNameElementHtml(playerName) {
     if (!playerName) {
         return "";
     }
-    return `<span class="identity-player-name" role="button" tabindex="0">${escapeHtml(playerName)}</span>`;
+    return `<span class="identity-player-name">${escapeHtml(playerName)}</span>`;
 }
 
 function buildIdentityContentHtml() {
     const squadText = buildIdentitySquadText();
     const playerName = getPlayerDisplayName();
-    const squadPart = squadText ? `<span class="identity-squads">${escapeHtml(squadText)}</span>` : "";
-    const separator = squadText && playerName
-        ? `<span class="identity-separator" aria-hidden="true">—</span>`
-        : "";
-    const namePart = buildIdentityNameElementHtml(playerName);
-    return `${squadPart}${separator}${namePart}`;
+    if (!squadText && !playerName) {
+        return "";
+    }
+    if (!squadText) {
+        return buildIdentityNameElementHtml(playerName);
+    }
+    if (!playerName) {
+        return escapeHtml(squadText);
+    }
+    return `${escapeHtml(squadText)} — ${buildIdentityNameElementHtml(playerName)}`;
 }
 
 function debugBadgeHtml() {
@@ -550,9 +554,16 @@ function onIdentityNameTap() {
     }
 }
 
-function registerIdentityNameEasterEgg() {
-    identityBar?.querySelectorAll(".identity-player-name").forEach((element) => {
-        element.addEventListener("click", onIdentityNameTap);
+function setupIdentityNameEasterEgg() {
+    if (!identityBar || identityBar.dataset.debugTapSetup === "1") {
+        return;
+    }
+    identityBar.dataset.debugTapSetup = "1";
+    identityBar.addEventListener("pointerup", (event) => {
+        if (!event.target.closest(".identity-player-name")) {
+            return;
+        }
+        onIdentityNameTap(event);
     });
 }
 
@@ -694,7 +705,7 @@ function renderIdentityBar() {
         identityBar.innerHTML = `
             <div class="identity-bar-inner">
                 <span class="identity-squads">${escapeHtml(squadText)}</span>
-                <span class="identity-separator" aria-hidden="true">—</span>
+                <span class="identity-separator" aria-hidden="true"> — </span>
                 <input
                     class="identity-name-input identity-player-name"
                     type="text"
@@ -708,7 +719,6 @@ function renderIdentityBar() {
             </div>
         `;
         bindIdentityNameInput(identityBar.querySelector(".identity-name-input"));
-        registerIdentityNameEasterEgg();
         identityBar.classList.remove("hidden");
         return;
     }
@@ -731,14 +741,12 @@ function renderIdentityBar() {
             dmActiveSquadId = null;
             renderShell();
         });
-        registerIdentityNameEasterEgg();
         identityBar.classList.remove("hidden");
         return;
     }
 
     identityBar.className = "identity-bar";
-    identityBar.innerHTML = `<div class="identity-bar-inner">${buildIdentityContentHtml()}${debugBadgeHtml()}</div>`;
-    registerIdentityNameEasterEgg();
+    identityBar.innerHTML = `<div class="identity-bar-inner"><span class="identity-text">${buildIdentityContentHtml()}${debugBadgeHtml()}</span></div>`;
     identityBar.classList.remove("hidden");
 }
 
@@ -2953,6 +2961,7 @@ debugCodeInput?.addEventListener("keydown", (event) => {
         void unlockDebugMode();
     }
 });
+setupIdentityNameEasterEgg();
 setupSquadPicker();
 
 window.AppShell = {
