@@ -449,6 +449,10 @@ textarea:disabled {
     margin-top: 12px;
 }
 
+.settings-panel .primary-squad-picker {
+    margin-top: 0;
+}
+
 .primary-squad-picker .segmented {
     margin: 8px 0 0;
 }

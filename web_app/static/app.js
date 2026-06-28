@@ -31,6 +31,7 @@ const attendanceTab = document.querySelector("#attendance-tab");
 const summaryTab = document.querySelector("#summary-tab");
 const adminTab = document.querySelector("#admin-tab");
 const membersTab = document.querySelector("#members-tab");
+const settingsTab = document.querySelector("#settings-tab");
 const createSquadTab = document.querySelector("#create-squad-tab");
 const createSquadForm = document.querySelector("#create-squad-form");
 const createSquadSuccess = document.querySelector("#create-squad-success");
@@ -542,24 +543,45 @@ function buildIdentitySquadText() {
         return "";
     }
 
-    const squadParts = [];
-    const primaryId = me.primary_squad_id;
     const squadMs = squadMemberships();
 
-    if (squadMs.length) {
-        const primary = squadMs.find((m) => m.squad_id === primaryId) || squadMs[0];
-        squadParts.push(primary.squad_name || "Отряд");
-        squadMs
-            .filter((m) => m.squad_id !== primary.squad_id)
-            .forEach((m) => squadParts.push(m.squad_name || "Отряд"));
-    } else if (me.squad_relation === "friend") {
-        const contextSquad = getSquadById(contextSquadId());
-        squadParts.push(contextSquad?.name ? `${contextSquad.name} (друг)` : "друг отряда");
-    } else if (hasSoloMembership()) {
-        squadParts.push("Одиночка");
+    if (isPersonalMenuActive() && dmActiveSquadId != null) {
+        const active = squadMs.find((m) => m.squad_id === dmActiveSquadId);
+        if (active) {
+            return active.squad_name || "Отряд";
+        }
     }
 
-    return squadParts.join(" / ");
+    if (isGroupChatLaunch() && !isPersonalMenuActive()) {
+        const contextId = launch?.squad_id ?? me?.context_squad_id;
+        if (contextId != null) {
+            const inContext = squadMs.find((m) => m.squad_id === contextId);
+            if (inContext) {
+                return inContext.squad_name || "Отряд";
+            }
+            if (me.squad_relation === "friend") {
+                const contextSquad = getSquadById(contextId);
+                return contextSquad?.name ? `${contextSquad.name} (друг)` : "друг отряда";
+            }
+        }
+    }
+
+    if (squadMs.length) {
+        const primaryId = me.primary_squad_id;
+        const primary = squadMs.find((m) => m.squad_id === primaryId) || squadMs[0];
+        return primary.squad_name || "Отряд";
+    }
+
+    if (me.squad_relation === "friend") {
+        const contextSquad = getSquadById(contextSquadId());
+        return contextSquad?.name ? `${contextSquad.name} (друг)` : "друг отряда";
+    }
+
+    if (hasSoloMembership()) {
+        return "Одиночка";
+    }
+
+    return "";
 }
 
 function buildIdentityText() {
@@ -953,8 +975,8 @@ function renderOwnSquadDock() {
     `;
 }
 
-function bindProfileControls() {
-    profileControls.querySelectorAll(".primary-squad-option").forEach((button) => {
+function bindPrimarySquadOptions(root = profileControls) {
+    root.querySelectorAll(".primary-squad-option").forEach((button) => {
         button.addEventListener("click", async () => {
             const squadId = Number(button.dataset.squadId);
             if (squadId === me.primary_squad_id) {
@@ -967,13 +989,20 @@ function bindProfileControls() {
                 });
                 dockMode = false;
                 appScenario = resolveAppScenario(me, launch);
-                renderShell();
+                renderIdentityBar();
+                if (currentView === "home") {
+                    renderShell();
+                } else if (currentView === "settings") {
+                    renderSettings();
+                }
             } catch (error) {
                 showErrorToast(error);
             }
         });
     });
+}
 
+function bindProfileControls() {
     profileControls.querySelectorAll(".dock-button").forEach((button) => {
         button.addEventListener("click", () => {
             dockMode = true;
@@ -994,7 +1023,7 @@ function renderProfileControls() {
         return;
     }
 
-    const html = renderPrimarySelectorHtml() + renderOwnSquadDock();
+    const html = renderOwnSquadDock();
     if (!html) {
         profileControls.classList.add("hidden");
         profileControls.innerHTML = "";
@@ -1069,15 +1098,22 @@ function shouldUseGroupMenuForSquad(squadId) {
         && squadId === launch.squad_id;
 }
 
+function memberMenuSquadId() {
+    if (isPersonalMenuActive() && dmActiveSquadId != null) {
+        return dmActiveSquadId;
+    }
+    return contextSquadId() ?? me?.primary_squad_id ?? null;
+}
+
 function menuItemConfig() {
     const relation = me?.squad_relation;
     const inPersonalSquadPick = isPersonalMenuActive() && dmActiveSquadId != null;
     const inForeign = blocksForeignMenu() && !inPersonalSquadPick;
     const hasContext = contextSquadId() != null;
     const canScheduleMember = relation === "member" || relation === "friend" || isDebugAdminActive();
-    const isAdmin = isEffectiveSquadAdmin();
+    const menuSquadId = memberMenuSquadId();
+    const isMenuSquadAdmin = menuSquadId != null && isEffectiveSquadAdmin(menuSquadId);
     const dmSquadId = isPersonalMenuActive() ? dmActiveSquadId : null;
-    const dmIsAdmin = dmSquadId != null && isEffectiveSquadAdmin(dmSquadId);
 
     if (shouldUseSoloMenuInContext()) {
         const noContext = !hasContext;
@@ -1211,8 +1247,17 @@ function menuItemConfig() {
         },
     ];
 
-    const showAdmin = inForeign ? false : (dmSquadId != null ? dmIsAdmin : isAdmin);
-    if (showAdmin) {
+    if (!inForeign && squadMemberships().length >= 2 && !shouldUseForeignSoloMenu()) {
+        items.push({
+            id: "settings",
+            label: "Настройки",
+            view: "settings",
+            disabled: false,
+            hint: "",
+        });
+    }
+
+    if (!inForeign && isMenuSquadAdmin) {
         items.push({
             id: "admin",
             label: "Управление отрядом",
@@ -1531,6 +1576,7 @@ function syncViewChrome() {
     summaryTab.classList.toggle("hidden", currentView !== "summary");
     adminTab.classList.toggle("hidden", currentView !== "admin");
     membersTab.classList.toggle("hidden", currentView !== "members");
+    settingsTab?.classList.toggle("hidden", currentView !== "settings");
     createSquadTab?.classList.toggle("hidden", currentView !== "create-squad");
     gameSelectorEl.classList.toggle("hidden", currentView !== "attendance" && currentView !== "summary");
 }
@@ -1559,6 +1605,7 @@ function showView(view) {
         summary: "Посещаемость",
         members: "Участники",
         admin: "Управление отрядом",
+        settings: "Настройки",
         "create-squad": "Создать отряд",
     };
     viewTitle.textContent = titles[view] || "Отряд";
@@ -1571,6 +1618,8 @@ function showView(view) {
         renderSummary();
     } else if (view === "members") {
         void renderMembers();
+    } else if (view === "settings") {
+        renderSettings();
     } else if (view === "admin") {
         renderAdmin();
     } else if (view === "create-squad") {
@@ -2513,6 +2562,27 @@ async function createSquad() {
     } catch (error) {
         showErrorToast(error);
     }
+}
+
+function renderSettings() {
+    syncViewChrome();
+
+    if (!settingsTab) {
+        return;
+    }
+
+    const pickerHtml = renderPrimarySelectorHtml();
+    if (!pickerHtml) {
+        settingsTab.innerHTML = `<div class="empty">Нет доступных настроек.</div>`;
+        return;
+    }
+
+    settingsTab.innerHTML = `
+        <article class="card settings-panel">
+            ${pickerHtml}
+        </article>
+    `;
+    bindPrimarySquadOptions(settingsTab);
 }
 
 async function renderMembers() {
