@@ -609,7 +609,7 @@ async def get_squad_friends(
     bot: Bot = Depends(get_bot),
 ) -> list[dict[str, Any]]:
     try:
-        await require_squad_admin(conn, bot, squad_id, telegram_user.id)
+        await require_squad_member_or_friend(conn, bot, squad_id, telegram_user.id)
         return await squad_ops.list_squad_friends(conn, squad_id)
     except Exception as exc:
         raise_api_error(exc)

@@ -2528,21 +2528,40 @@ async function renderMembers() {
     membersTab.innerHTML = `<div class="empty">Загрузка…</div>`;
 
     try {
-        const members = await api(`/api/v1/squads/${squadId}/members`);
-        if (!members.length) {
+        const [members, friends] = await Promise.all([
+            api(`/api/v1/squads/${squadId}/members`),
+            api(`/api/v1/squads/${squadId}/friends`),
+        ]);
+
+        if (!members.length && !friends.length) {
             membersTab.innerHTML = `<div class="empty">В отряде пока нет участников.</div>`;
             return;
         }
 
         membersTab.innerHTML = `
             <article class="card">
-                <ul class="membership-list" role="list">
-                    ${members.map((member) => `
-                        <li class="membership-item">
-                            <span>${formatSquadMemberLabel(member)}</span>
-                        </li>
-                    `).join("")}
-                </ul>
+                <h3>Участники</h3>
+                ${members.length ? `
+                    <ul class="membership-list" role="list">
+                        ${members.map((member) => `
+                            <li class="membership-item">
+                                <span>${formatSquadMemberLabel(member)}</span>
+                            </li>
+                        `).join("")}
+                    </ul>
+                ` : `<p class="empty-inline">Нет участников.</p>`}
+            </article>
+            <article class="card">
+                <h3>Друзья отряда</h3>
+                ${friends.length ? `
+                    <ul class="membership-list" role="list">
+                        ${friends.map((friend) => `
+                            <li class="membership-item">
+                                <span>${escapeHtml(friend.name)}</span>
+                            </li>
+                        `).join("")}
+                    </ul>
+                ` : `<p class="empty-inline">Нет друзей.</p>`}
             </article>
         `;
     } catch (error) {
