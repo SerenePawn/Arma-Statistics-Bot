@@ -14,6 +14,7 @@ const profileControls = document.querySelector("#profile-controls");
 const gameSelectorEl = document.querySelector("#game-selector");
 const mainMenu = document.querySelector("#main-menu");
 const mainMenuGrid = document.querySelector("#main-menu-grid");
+const menuTodayEventsEl = document.querySelector("#menu-today-events");
 const viewHeader = document.querySelector("#view-header");
 const viewTitle = document.querySelector("#view-title");
 const backButton = document.querySelector("#back-button");
@@ -1098,6 +1099,135 @@ function shouldUseGroupMenuForSquad(squadId) {
         && squadId === launch.squad_id;
 }
 
+function memberMenuSquadQuery(extra = {}) {
+    const params = new URLSearchParams();
+    const squadId = memberMenuSquadId();
+    if (squadId) {
+        params.set("squad_id", String(squadId));
+    }
+    Object.entries(extra).forEach(([key, value]) => {
+        if (value != null) {
+            params.set(key, String(value));
+        }
+    });
+    const query = params.toString();
+    return query ? `?${query}` : "";
+}
+
+function getTodayEvents(attendances, weekStartIso) {
+    const todayIso = toIsoDate(new Date());
+    return attendances
+        .filter((entry) => {
+            const occurrence = presetOccurrenceInWeek(entry.schedule_preset, weekStartIso);
+            return occurrence && toIsoDate(occurrence) === todayIso;
+        })
+        .sort((left, right) => {
+            const timeLeft = String(left.schedule_preset.game_time || "").slice(0, 5);
+            const timeRight = String(right.schedule_preset.game_time || "").slice(0, 5);
+            return timeLeft.localeCompare(timeRight) || left.schedule_preset.id - right.schedule_preset.id;
+        });
+}
+
+function renderMenuTodayEventRow({ schedule_preset, attend_status }) {
+    const time = String(schedule_preset.game_time || "").slice(0, 5);
+    return `
+        <div class="menu-today-event" data-preset-id="${schedule_preset.id}">
+            <div class="menu-today-event-info">
+                <span class="menu-today-event-title">${escapeHtml(schedule_preset.title)}</span>
+                <span class="menu-today-event-time">${escapeHtml(time)}</span>
+            </div>
+            <div class="segmented menu-today-attendance">
+                ${attendanceButton(schedule_preset.id, "will_attend", attend_status === "will_attend", "Приду")}
+                ${attendanceButton(schedule_preset.id, "will_not_attend", attend_status === "will_not_attend", "Не приду")}
+                ${attendanceButton(schedule_preset.id, "doubts", attend_status === "doubts", "Сомневаюсь")}
+            </div>
+        </div>
+    `;
+}
+
+function bindMenuTodayAttendanceButtons() {
+    if (!menuTodayEventsEl) {
+        return;
+    }
+
+    menuTodayEventsEl.querySelectorAll("[data-attendance-value]").forEach((button) => {
+        button.addEventListener("click", async () => {
+            if (button.disabled) {
+                return;
+            }
+            const presetId = button.dataset.presetId;
+            const value = button.dataset.attendanceValue;
+            try {
+                await api(`/api/v1/attendances/${presetId}${memberMenuSquadQuery()}`, {
+                    method: "PUT",
+                    body: JSON.stringify({
+                        attend_status: value === "null" ? null : value,
+                        comment: "",
+                    }),
+                });
+                await renderMenuTodayEvents();
+            } catch (error) {
+                showErrorToast(error);
+            }
+        });
+    });
+}
+
+function shouldShowMenuTodayEvents() {
+    if (currentView !== "home" || !isRegistered()) {
+        return false;
+    }
+    if (shouldShowDmSquadPicker()) {
+        return false;
+    }
+    const inForeign = isForeignChatContext() && !dockMode;
+    if (inForeign && appScenario === 6 && !shouldUseForeignSoloMenu() && !isDebugAdminActive()) {
+        return false;
+    }
+    const { type } = menuItemConfig();
+    if (type !== "member" || memberMenuSquadId() == null) {
+        return false;
+    }
+    const relation = me?.squad_relation;
+    return relation === "member" || relation === "friend" || isDebugAdminActive();
+}
+
+async function renderMenuTodayEvents() {
+    if (!menuTodayEventsEl) {
+        return;
+    }
+
+    if (!shouldShowMenuTodayEvents()) {
+        menuTodayEventsEl.classList.add("hidden");
+        menuTodayEventsEl.innerHTML = "";
+        return;
+    }
+
+    menuTodayEventsEl.classList.remove("hidden");
+    menuTodayEventsEl.innerHTML = `<p class="menu-today-loading">Загрузка…</p>`;
+
+    try {
+        const weekStartIso = currentScheduleWeekStart();
+        const attendances = await api(`/api/v1/attendances${memberMenuSquadQuery({ week_start: weekStartIso })}`);
+        const todayEvents = getTodayEvents(attendances, weekStartIso);
+
+        if (!todayEvents.length) {
+            menuTodayEventsEl.innerHTML = `<p class="menu-today-empty">Сегодня нет ивентов</p>`;
+            return;
+        }
+
+        menuTodayEventsEl.innerHTML = `
+            <div class="menu-today-list">
+                ${todayEvents.map(renderMenuTodayEventRow).join("")}
+            </div>
+        `;
+        bindMenuTodayAttendanceButtons();
+    } catch (error) {
+        menuTodayEventsEl.classList.add("hidden");
+        menuTodayEventsEl.innerHTML = "";
+    }
+}
+
 function memberMenuSquadId() {
     if (isPersonalMenuActive() && dmActiveSquadId != null) {
         return dmActiveSquadId;
@@ -1396,19 +1526,30 @@ function bindDmSquadPicker() {
 }
 
 function renderMainMenu() {
+    const hideMenuTodayEvents = () => {
+        if (!menuTodayEventsEl) {
+            return;
+        }
+        menuTodayEventsEl.classList.add("hidden");
+        menuTodayEventsEl.innerHTML = "";
+    };
+
     if (currentView !== "home") {
         mainMenu.classList.add("hidden");
+        hideMenuTodayEvents();
         return;
     }
 
     if (!isRegistered()) {
         mainMenu.classList.add("hidden");
+        hideMenuTodayEvents();
         return;
     }
 
     const inForeign = isForeignChatContext() && !dockMode;
     if (inForeign && appScenario === 6 && !shouldUseForeignSoloMenu() && !isDebugAdminActive()) {
         mainMenu.classList.add("hidden");
+        hideMenuTodayEvents();
         return;
     }
 
@@ -1417,6 +1558,7 @@ function renderMainMenu() {
         mainMenuGrid.innerHTML = renderDmSquadPickerHtml();
         bindDmSquadPicker();
         mainMenu.classList.remove("hidden");
+        hideMenuTodayEvents();
         return;
     }
 
@@ -1487,6 +1629,7 @@ function renderMainMenu() {
     });
 
     mainMenu.classList.remove("hidden");
+    void renderMenuTodayEvents();
 }
 
 async function submitSquadRequest(requestType) {
@@ -2178,11 +2321,11 @@ function scheduleGridHtml(weekStartIso, attendances) {
                 const recurrenceBadge = recurrence !== "weekly"
                     ? `<span class="schedule-event-badge">${escapeHtml(recurrenceLabels[recurrence] || recurrence)}</span>`
                     : "";
+                const gameAttr = gameTitle ? ` data-game-title="${escapeHtml(gameTitle)}"` : "";
                 return `
-                    <div class="schedule-event">
+                    <div class="schedule-event"${gameAttr}>
                         <span class="schedule-event-time">${escapeHtml(time)}</span>
                         <span class="schedule-event-title">${escapeHtml(preset.title)}${recurrenceBadge}</span>
-                        ${gameTitle ? `<span class="schedule-event-game">${escapeHtml(gameTitle)}</span>` : ""}
                     </div>
                 `;
             }).join("")
@@ -2265,9 +2408,10 @@ function renderAttendanceCards(attendances, { readOnly }) {
                     ${attendanceButton(schedule_preset.id, "null", weekly_attend_status == null, "Сбросить")}
                 </div>
             `;
+        const showComment = attend_status === "doubts" || attend_status === "will_not_attend";
         return `
             <article class="card event-card ${readOnly ? "event-card--readonly" : ""}" data-preset-id="${schedule_preset.id}">
-                ${eventHeader(schedule_preset)}
+                ${eventHeader(schedule_preset, { gameOnHover: true })}
                 ${readOnly ? "" : `
                 <label class="always-attend-toggle always-attend-toggle--card">
                     <input
@@ -2278,7 +2422,7 @@ function renderAttendanceCards(attendances, { readOnly }) {
                     <span>Всегда буду приходить</span>
                 </label>`}
                 ${autoApplied ? '<p class="auto-attend-hint">На эту неделю: приду автоматически</p>' : ""}
-                ${readOnly || alwaysAttend ? "" : `
+                ${readOnly || alwaysAttend || !showComment ? "" : `
                 <div class="comment-field">
                     <textarea
                         data-comment-for="${schedule_preset.id}"
@@ -2300,17 +2444,20 @@ function renderAttendanceCards(attendances, { readOnly }) {
     }).join("");
 }
 
-function eventHeader(item) {
+function eventHeader(item, { gameOnHover = false } = {}) {
     const gameTitle = item.game?.title;
-    const gameLine = gameTitle
+    const gameLine = !gameOnHover && gameTitle
         ? `<p class="game-title">${escapeHtml(gameTitle)}</p>`
+        : "";
+    const gameAttr = gameOnHover && gameTitle
+        ? ` data-game-title="${escapeHtml(gameTitle)}"`
         : "";
     const recurrence = item.recurrence_type || "weekly";
     const recurrenceBadge = recurrence !== "weekly"
         ? `<span class="admin-badge">${recurrenceLabels[recurrence] || recurrence}</span>`
         : "";
     return `
-        <div>
+        <div${gameAttr}>
             <h3>${escapeHtml(item.title)}${recurrenceBadge}</h3>
             ${gameLine}
             <p>${formatEventSchedule(item)}</p>

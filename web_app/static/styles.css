@@ -1283,6 +1283,74 @@ textarea:disabled {
     height: 100%;
 }
 
+.menu-today-events {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+.menu-today-loading,
+.menu-today-empty {
+    margin: 0;
+    text-align: center;
+    color: var(--hint);
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.menu-today-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.menu-today-event {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
+    gap: 10px;
+    align-items: center;
+    padding: 12px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--text) 5%, transparent);
+    border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+.menu-today-event-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.menu-today-event-title {
+    font-weight: 600;
+    font-size: 15px;
+    line-height: 1.3;
+}
+
+.menu-today-event-time {
+    color: var(--hint);
+    font-size: 13px;
+}
+
+.menu-today-attendance.segmented {
+    margin: 0;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.menu-today-attendance button {
+    min-height: 36px;
+    padding: 8px 4px;
+    font-size: 12px;
+    line-height: 1.2;
+}
+
+@media (max-width: 420px) {
+    .menu-today-event {
+        grid-template-columns: 1fr;
+    }
+}
+
 .menu-item-wrap {
     display: flex;
     flex-direction: column;
@@ -1581,10 +1649,37 @@ body:has(.preview-toolbar) .app {
     word-break: break-word;
 }
 
-.schedule-event-game {
-    font-size: 11px;
+[data-game-title] {
+    position: relative;
+}
+
+[data-game-title]::after {
+    content: attr(data-game-title);
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 4px);
+    transform: translateX(-50%);
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: var(--card);
+    border: 1px solid rgb(255 255 255 / 15%);
     color: var(--hint);
-    word-break: break-word;
+    font-size: 11px;
+    font-weight: 500;
+    white-space: nowrap;
+    max-width: min(200px, 90vw);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    z-index: 20;
+    box-shadow: 0 2px 8px rgb(0 0 0 / 25%);
+}
+
+[data-game-title]:hover::after {
+    opacity: 1;
+    visibility: visible;
 }
 
 .schedule-event-badge {
