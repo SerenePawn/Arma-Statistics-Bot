@@ -1305,14 +1305,20 @@ textarea:disabled {
 }
 
 .menu-today-event {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
-    gap: 10px;
-    align-items: center;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
     padding: 12px;
     border-radius: 12px;
     background: color-mix(in srgb, var(--text) 5%, transparent);
     border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+.menu-today-event-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
+    gap: 10px;
+    align-items: center;
 }
 
 .menu-today-event-info {
@@ -1328,9 +1334,32 @@ textarea:disabled {
     line-height: 1.3;
 }
 
-.menu-today-event-time {
+.menu-today-event-meta {
     color: var(--hint);
     font-size: 13px;
+    line-height: 1.3;
+}
+
+.menu-today-comment-input {
+    width: 100%;
+    margin: 0;
+    padding: 7px 10px;
+    border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--text) 4%, var(--card));
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+    line-height: 1.2;
+}
+
+.menu-today-comment-input:focus {
+    outline: none;
+    border-color: color-mix(in srgb, var(--button) 55%, transparent);
+}
+
+.menu-today-comment-input::placeholder {
+    color: var(--hint);
 }
 
 .menu-today-attendance.segmented {
@@ -1346,7 +1375,7 @@ textarea:disabled {
 }
 
 @media (max-width: 420px) {
-    .menu-today-event {
+    .menu-today-event-row {
         grid-template-columns: 1fr;
     }
 }

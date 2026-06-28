@@ -506,17 +506,18 @@ function getPlayerDisplayName() {
 const IDENTITY_DASH = "&nbsp;—&nbsp;";
 
 function isEffectiveSquadAdmin(squadId = null) {
+    const targetSquadId = squadId ?? contextSquadId();
     if (me?.is_debug_admin) {
-        if (squadId != null) {
+        if (targetSquadId != null) {
             return true;
         }
-        return contextSquadId() != null || launch?.squad_id != null;
+        return launch?.squad_id != null;
     }
-    if (squadId != null) {
-        return me?.is_admin_of_squad_id === squadId
-            || (Boolean(me?.is_squad_admin) && me?.primary_squad_id === squadId);
+    if (targetSquadId == null) {
+        return false;
     }
-    return Boolean(me?.is_admin_of_squad_id || me?.is_squad_admin);
+    return me?.is_admin_of_squad_id === targetSquadId
+        || (Boolean(me?.is_squad_admin) && me?.primary_squad_id === targetSquadId);
 }
 
 function resolveAdminSquadId(currentMe = me) {
@@ -869,7 +870,7 @@ function renderContextBanner() {
         const inThisSquadContext = contextSquadId() === launch.squad_id;
 
         if (own != null && launch.squad_id === own) {
-            if (isEffectiveSquadAdmin()) {
+            if (isEffectiveSquadAdmin(launch.squad_id)) {
                 text = `Открыто из чата отряда «${name}» · вы администратор`;
                 variant = "own";
             } else {
@@ -946,7 +947,7 @@ function renderOwnSquadDock() {
         return "";
     }
 
-    const isAdmin = isEffectiveSquadAdmin();
+    const isAdmin = isEffectiveSquadAdmin(ownId);
     const pending = window.__previewAdmin?.pendingCount;
 
     if (isAdmin) {
@@ -1128,21 +1129,113 @@ function getTodayEvents(attendances, weekStartIso) {
         });
 }
 
-function renderMenuTodayEventRow({ schedule_preset, attend_status }) {
+function formatWillAttendCount(count) {
+    if (!count) {
+        return "";
+    }
+    const mod10 = count % 10;
+    const mod100 = count % 100;
+    if (mod10 === 1 && mod100 !== 11) {
+        return `${count} придёт`;
+    }
+    return `${count} придут`;
+}
+
+function buildWillAttendCountMap(summary) {
+    const counts = new Map();
+    summary.forEach((item) => {
+        const presetId = item.schedule_preset?.id;
+        if (presetId == null) {
+            return;
+        }
+        const count = (item.players || []).filter((player) => player.attend_status === "will_attend").length;
+        counts.set(presetId, count);
+    });
+    return counts;
+}
+
+function buildMenuTodayMetaHtml(schedule_preset, willAttendCount = 0) {
     const time = String(schedule_preset.game_time || "").slice(0, 5);
+    const parts = [escapeHtml(time)];
+    const gameTitle = schedule_preset.game?.title;
+    if (gameTitle) {
+        parts.push(escapeHtml(gameTitle));
+    }
+    const attendLabel = formatWillAttendCount(willAttendCount);
+    if (attendLabel) {
+        parts.push(escapeHtml(attendLabel));
+    }
+    return parts.join("&nbsp;—&nbsp;");
+}
+
+function renderMenuTodayEventRow({ schedule_preset, attend_status, comment, willAttendCount = 0 }) {
+    const metaHtml = buildMenuTodayMetaHtml(schedule_preset, willAttendCount);
+    const showComment = attend_status === "doubts" || attend_status === "will_not_attend";
+
     return `
         <div class="menu-today-event" data-preset-id="${schedule_preset.id}">
-            <div class="menu-today-event-info">
-                <span class="menu-today-event-title">${escapeHtml(schedule_preset.title)}</span>
-                <span class="menu-today-event-time">${escapeHtml(time)}</span>
+            <div class="menu-today-event-row">
+                <div class="menu-today-event-info">
+                    <span class="menu-today-event-title">${escapeHtml(schedule_preset.title)}</span>
+                    <span class="menu-today-event-meta">${metaHtml}</span>
+                </div>
+                <div class="segmented menu-today-attendance">
+                    ${attendanceButton(schedule_preset.id, "will_attend", attend_status === "will_attend", "Приду")}
+                    ${attendanceButton(schedule_preset.id, "will_not_attend", attend_status === "will_not_attend", "Не приду")}
+                    ${attendanceButton(schedule_preset.id, "doubts", attend_status === "doubts", "Сомневаюсь")}
+                </div>
             </div>
-            <div class="segmented menu-today-attendance">
-                ${attendanceButton(schedule_preset.id, "will_attend", attend_status === "will_attend", "Приду")}
-                ${attendanceButton(schedule_preset.id, "will_not_attend", attend_status === "will_not_attend", "Не приду")}
-                ${attendanceButton(schedule_preset.id, "doubts", attend_status === "doubts", "Сомневаюсь")}
-            </div>
+            ${showComment ? `
+                <input
+                    class="menu-today-comment-input"
+                    type="text"
+                    data-menu-comment-for="${schedule_preset.id}"
+                    data-current-status="${attend_status ?? ""}"
+                    maxlength="100"
+                    value="${escapeHtml(comment || "")}"
+                    placeholder="Комментарий"
+                    autocomplete="off"
+                    spellcheck="false"
+                    aria-label="Комментарий к событию"
+                >
+            ` : ""}
         </div>
     `;
+}
+
+function getMenuTodayComment(presetId) {
+    return menuTodayEventsEl?.querySelector(`[data-menu-comment-for="${presetId}"]`)?.value?.trim() || "";
+}
+
+function bindMenuTodayCommentInputs() {
+    if (!menuTodayEventsEl) {
+        return;
+    }
+
+    menuTodayEventsEl.querySelectorAll(".menu-today-comment-input").forEach((input) => {
+        if (input.dataset.bound === "1") {
+            return;
+        }
+        input.dataset.bound = "1";
+        input.addEventListener("blur", async () => {
+            const presetId = input.dataset.menuCommentFor;
+            const attendStatus = input.dataset.currentStatus;
+            if (attendStatus !== "doubts" && attendStatus !== "will_not_attend") {
+                return;
+            }
+            try {
+                await api(`/api/v1/attendances/${presetId}${memberMenuSquadQuery()}`, {
+                    method: "PUT",
+                    body: JSON.stringify({
+                        attend_status: attendStatus,
+                        comment: input.value.trim(),
+                    }),
+                });
+            } catch (error) {
+                showErrorToast(error);
+            }
+        });
+    });
 }
 
 function bindMenuTodayAttendanceButtons() {
@@ -1157,12 +1250,14 @@ function bindMenuTodayAttendanceButtons() {
             }
             const presetId = button.dataset.presetId;
             const value = button.dataset.attendanceValue;
+            const needsComment = value === "doubts" || value === "will_not_attend";
+            const comment = needsComment ? getMenuTodayComment(presetId) : "";
             try {
                 await api(`/api/v1/attendances/${presetId}${memberMenuSquadQuery()}`, {
                     method: "PUT",
                     body: JSON.stringify({
                         attend_status: value === "null" ? null : value,
-                        comment: "",
+                        comment,
                     }),
                 });
                 await renderMenuTodayEvents();
@@ -1208,7 +1303,11 @@ async function renderMenuTodayEvents() {
 
     try {
         const weekStartIso = currentScheduleWeekStart();
-        const attendances = await api(`/api/v1/attendances${memberMenuSquadQuery({ week_start: weekStartIso })}`);
+        const [attendances, summary] = await Promise.all([
+            api(`/api/v1/attendances${memberMenuSquadQuery({ week_start: weekStartIso })}`),
+            api(`/api/v1/attendance-summary${memberMenuSquadQuery()}`),
+        ]);
+        const willAttendCounts = buildWillAttendCountMap(summary);
         const todayEvents = getTodayEvents(attendances, weekStartIso);
 
         if (!todayEvents.length) {
@@ -1218,10 +1317,14 @@ async function renderMenuTodayEvents() {
 
         menuTodayEventsEl.innerHTML = `
             <div class="menu-today-list">
-                ${todayEvents.map(renderMenuTodayEventRow).join("")}
+                ${todayEvents.map((entry) => renderMenuTodayEventRow({
+                    ...entry,
+                    willAttendCount: willAttendCounts.get(entry.schedule_preset.id) || 0,
+                })).join("")}
             </div>
         `;
         bindMenuTodayAttendanceButtons();
+        bindMenuTodayCommentInputs();
     } catch (error) {
         menuTodayEventsEl.classList.add("hidden");
         menuTodayEventsEl.innerHTML = "";
