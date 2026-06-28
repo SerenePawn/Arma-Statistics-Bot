@@ -1101,9 +1101,7 @@ function menuItemConfig() {
                     ? noContextHint
                     : isOutsider
                         ? "Только просмотр"
-                        : isFriend
-                            ? "Друг отряда"
-                            : "",
+                        : "",
             },
         ];
 
