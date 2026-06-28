@@ -2557,7 +2557,7 @@ async function renderMembers() {
                     <ul class="membership-list" role="list">
                         ${friends.map((friend) => `
                             <li class="membership-item">
-                                <span>${escapeHtml(friend.name)}</span>
+                                <span>${formatSquadMemberLabel(friend)}</span>
                             </li>
                         `).join("")}
                     </ul>
@@ -2793,7 +2793,7 @@ async function renderAdmin() {
             <h3>Друзья отряда</h3>
             ${friends.length ? friends.map((friend) => `
                 <div class="admin-row">
-                    <span>${escapeHtml(friend.name)}</span>
+                    <span>${formatSquadMemberLabel(friend)}</span>
                     <button type="button" data-remove-friend="${friend.id}">Удалить из друзей</button>
                 </div>
             `).join("") : `<p class="empty-inline">Нет друзей.</p>`}

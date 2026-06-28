@@ -301,6 +301,7 @@ async def leave_squad_self(
 
 async def list_squad_friends(
     conn: asyncpg.Connection,
+    bot: Bot,
     squad_id: int,
 ) -> list[dict[str, Any]]:
     friends_ids = await squads_db.get_friends_ids(conn, squad_id)
@@ -315,7 +316,23 @@ async def list_squad_friends(
         """,
         friends_ids,
     )
-    return [dict(row) for row in rows]
+    chat_id = await get_squad_chat_id(conn, squad_id)
+    result = []
+    for row in rows:
+        display_name = ""
+        if chat_id is not None:
+            display_name = (
+                await get_chat_member_status_and_display_name(bot, chat_id, row["telegram_id"])
+            )[1]
+        result.append(
+            {
+                "id": row["id"],
+                "telegram_id": row["telegram_id"],
+                "display_name": display_name,
+                "name": row["name"],
+            }
+        )
+    return result
 
 
 async def remove_squad_friend(

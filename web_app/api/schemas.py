@@ -173,6 +173,7 @@ class SquadMemberOut(BaseModel):
 class SquadFriendOut(BaseModel):
     id: int
     telegram_id: int
+    display_name: str = ""
     name: str
 
 
