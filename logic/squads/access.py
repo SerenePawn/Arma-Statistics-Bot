@@ -58,13 +58,14 @@ async def resolve_squad_access(
     telegram_id: int,
     squad_id: int,
 ) -> SquadAccess:
+    if _is_debug_admin(telegram_id):
+        return "admin"
+
     if await squad_requests_db.is_blocked(conn, squad_id, telegram_id):
         return "blocked"
 
     member = await _get_player_in_squad(conn, telegram_id, squad_id)
     if member:
-        if _is_debug_admin(telegram_id):
-            return "admin"
         if bot is not None:
             chat_id = await get_telegram_chat_id_by_squad_id(conn, squad_id)
             if chat_id is not None and await is_chat_admin(bot, chat_id, telegram_id):

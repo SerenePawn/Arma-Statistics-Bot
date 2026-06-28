@@ -102,19 +102,11 @@ async def enrich_me(
             default_game_id = main_game_ids[0] if main_game_ids else context_squad["games"][0]["id"]
 
     if get_debug_admin_telegram_id() == me["telegram_id"]:
-        for membership in me.get("memberships", []):
-            squad_id = membership.get("squad_id")
-            if squad_id is None:
-                continue
-            if is_admin_of_squad_id is None:
-                is_admin_of_squad_id = squad_id
-            if squad_id == primary_squad_id:
-                is_squad_admin = True
-        if context_squad_id is not None:
-            if await repository.get_player_in_squad(conn, me["telegram_id"], context_squad_id):
-                is_admin_of_squad_id = context_squad_id
-                if context_squad_id == primary_squad_id:
-                    is_squad_admin = True
+        target_squad_id = context_squad_id or launch_squad_id
+        if target_squad_id is not None:
+            is_admin_of_squad_id = target_squad_id
+            is_squad_admin = True
+            squad_relation = "member"
         if launch_source == "squad_chat" and telegram_user.launch_chat_id is not None:
             can_create_squad = True
 

@@ -386,6 +386,9 @@ function isDmLaunch() {
 }
 
 function shouldUseForeignSoloMenu() {
+    if (me?.is_debug_admin) {
+        return false;
+    }
     if (!isForeignChatContext() || dockMode) {
         return false;
     }
@@ -393,6 +396,9 @@ function shouldUseForeignSoloMenu() {
 }
 
 function shouldUseSoloMenuInContext() {
+    if (me?.is_debug_admin && (contextSquadId() != null || launch?.squad_id != null)) {
+        return false;
+    }
     return isSoloOnly() || shouldUseForeignSoloMenu();
 }
 
@@ -446,6 +452,9 @@ function resolveAppScenario(currentMe, currentLaunch) {
     const isAdmin = adminSquadId != null;
 
     if (soloOnly) {
+        if (inChat && currentMe?.is_debug_admin && currentLaunch?.squad_id) {
+            return 7;
+        }
         return inChat ? 2 : 1;
     }
 
@@ -479,11 +488,10 @@ const IDENTITY_DASH = "&nbsp;—&nbsp;";
 
 function isEffectiveSquadAdmin(squadId = null) {
     if (me?.is_debug_admin) {
-        const memberships = me?.memberships || [];
-        if (squadId == null) {
-            return memberships.some((membership) => membership.squad_id != null);
+        if (squadId != null) {
+            return true;
         }
-        return memberships.some((membership) => membership.squad_id === squadId);
+        return contextSquadId() != null || launch?.squad_id != null;
     }
     if (squadId != null) {
         return me?.is_admin_of_squad_id === squadId
@@ -500,12 +508,13 @@ function resolveAdminSquadId(currentMe = me) {
         return currentMe.primary_squad_id;
     }
     if (currentMe?.is_debug_admin) {
-        const launchSquadId = launch?.squad_id;
-        const memberships = currentMe?.memberships || [];
-        if (launchSquadId != null && memberships.some((membership) => membership.squad_id === launchSquadId)) {
-            return launchSquadId;
+        if (currentMe?.context_squad_id != null) {
+            return currentMe.context_squad_id;
         }
-        const firstMembership = memberships.find((membership) => membership.squad_id != null);
+        if (launch?.squad_id != null) {
+            return launch.squad_id;
+        }
+        const firstMembership = (currentMe?.memberships || []).find((membership) => membership.squad_id != null);
         return firstMembership?.squad_id ?? null;
     }
     return null;

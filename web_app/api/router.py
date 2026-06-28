@@ -120,12 +120,12 @@ async def require_squad_admin(
     squad_id: int,
     telegram_id: int,
 ) -> None:
+    if get_debug_admin_telegram_id() == telegram_id:
+        return
+
     member = await repository.get_player_in_squad(conn, telegram_id, squad_id)
     if not member:
         raise SquadPermissionError("access_denied")
-
-    if get_debug_admin_telegram_id() == telegram_id:
-        return
 
     chat_id = await get_squad_chat_id(conn, squad_id)
     if chat_id is None:
@@ -139,6 +139,9 @@ async def require_squad_member(
     squad_id: int,
     telegram_id: int,
 ) -> None:
+    if get_debug_admin_telegram_id() == telegram_id:
+        return
+
     member = await repository.get_player_in_squad(conn, telegram_id, squad_id)
     if not member:
         raise SquadPermissionError("access_denied")
@@ -203,6 +206,10 @@ async def resolve_schedule_context(
     if access in ("member", "admin"):
         player = await repository.get_player_in_squad(conn, telegram_id, squad_id)
         if not player:
+            if access == "admin" and get_debug_admin_telegram_id() == telegram_id:
+                solo = await repository.get_solo_player(conn, telegram_id)
+                if solo:
+                    return solo, access
             raise SquadPermissionError("access_denied")
         return player, access
     if access == "friend":
