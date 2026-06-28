@@ -329,6 +329,20 @@ async def remove_squad_friend(
     await squads_db.remove_friend(conn, squad_id, player_id)
 
 
+async def leave_squad_friendship_self(
+    conn: asyncpg.Connection,
+    telegram_id: int,
+    squad_id: int,
+) -> None:
+    solo = await repository.get_solo_player(conn, telegram_id)
+    if not solo:
+        raise ValueError("Player not found")
+    friends_ids = await squads_db.get_friends_ids(conn, squad_id)
+    if solo["id"] not in friends_ids:
+        raise SquadPermissionError("target_not_in_squad")
+    await squads_db.remove_friend(conn, squad_id, solo["id"])
+
+
 async def create_squad_request(
     conn: asyncpg.Connection,
     telegram_user: TelegramUser,

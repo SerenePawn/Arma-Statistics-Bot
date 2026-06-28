@@ -147,6 +147,21 @@ async def require_squad_member(
         raise SquadPermissionError("access_denied")
 
 
+async def require_squad_member_or_friend(
+    conn: asyncpg.Connection,
+    bot: Bot,
+    squad_id: int,
+    telegram_id: int,
+) -> None:
+    if get_debug_admin_telegram_id() == telegram_id:
+        return
+
+    access = await resolve_squad_access(conn, bot, telegram_id, squad_id)
+    if access in ("member", "admin", "friend"):
+        return
+    raise SquadPermissionError("access_denied")
+
+
 async def require_create_squad_from_chat(bot: Bot, telegram_user: TelegramUser) -> None:
     if telegram_user.launch_chat_id is None:
         raise SquadPermissionError("access_denied")
@@ -180,13 +195,14 @@ async def require_can_create_squad_request(
     conn: asyncpg.Connection,
     telegram_user: TelegramUser,
     squad_id: int,
+    request_type: RequestType,
 ) -> None:
     solo = await repository.get_solo_player(conn, telegram_user.id)
     if not solo:
         raise SquadPermissionError("access_denied")
     if await repository.get_player_in_squad(conn, telegram_user.id, squad_id):
         raise ValueError("already_member")
-    if await is_squad_friend(conn, squad_id, solo["id"]):
+    if request_type == RequestType.FRIEND and await is_squad_friend(conn, squad_id, solo["id"]):
         raise SquadPermissionError("already_friend")
     if await squad_requests_db.is_blocked(conn, squad_id, telegram_user.id):
         raise SquadPermissionError("squad_blocked")
@@ -564,7 +580,7 @@ async def get_squad_members(
     bot: Bot = Depends(get_bot),
 ) -> list[dict[str, Any]]:
     try:
-        await require_squad_member(conn, squad_id, telegram_user.id)
+        await require_squad_member_or_friend(conn, bot, squad_id, telegram_user.id)
         return await squad_ops.list_squad_members(conn, bot, squad_id)
     except Exception as exc:
         raise_api_error(exc)
@@ -614,6 +630,18 @@ async def remove_squad_friend(
         raise_api_error(exc)
 
 
+@router.delete("/squads/{squad_id}/friendship", status_code=status.HTTP_204_NO_CONTENT)
+async def leave_squad_friendship(
+    squad_id: int,
+    conn: asyncpg.Connection = Depends(get_db),
+    telegram_user: TelegramUser = Depends(get_telegram_user),
+) -> None:
+    try:
+        await squad_ops.leave_squad_friendship_self(conn, telegram_user.id, squad_id)
+    except Exception as exc:
+        raise_api_error(exc)
+
+
 @router.post("/squads/{squad_id}/requests", response_model=SquadRequestOut)
 async def create_squad_request(
     squad_id: int,
@@ -622,8 +650,8 @@ async def create_squad_request(
     telegram_user: TelegramUser = Depends(get_telegram_user),
 ) -> dict[str, Any]:
     try:
-        await require_can_create_squad_request(conn, telegram_user, squad_id)
         request_type = RequestType(payload.request_type)
+        await require_can_create_squad_request(conn, telegram_user, squad_id, request_type)
         return await squad_ops.create_squad_request(conn, telegram_user, squad_id, request_type)
     except Exception as exc:
         raise_api_error(exc)

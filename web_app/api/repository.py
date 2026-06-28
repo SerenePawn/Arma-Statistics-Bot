@@ -909,6 +909,7 @@ async def list_player_attendance_state(
 
 async def list_attendance_summary(conn: asyncpg.Connection, squad_id: int) -> list[dict[str, Any]]:
     presets = await list_presets_for_squad(conn, squad_id, current_week_only=True)
+    friends_ids = await squads_db.get_friends_ids(conn, squad_id)
     summary = []
     for preset in presets:
         rows = await conn.fetch(
@@ -931,12 +932,14 @@ async def list_attendance_summary(conn: asyncpg.Connection, squad_id: int) -> li
                     ON atd.player_id = p.id
                     AND atd.schedule_preset_id = $2
                     AND atd.created_at >= $3
-            WHERE p.squad_id = $1 AND (s.id IS NOT NULL OR atd.id IS NOT NULL)
+            WHERE (p.squad_id = $1 OR p.id = ANY($4::int[]))
+                AND (s.id IS NOT NULL OR atd.id IS NOT NULL)
             ORDER BY lower(p.name)
             """,
             squad_id,
             preset["id"],
             week_start(),
+            friends_ids or [0],
         )
         summary.append({"schedule_preset": preset, "players": [dict(row) for row in rows if row["attend_status"]]})
     return summary

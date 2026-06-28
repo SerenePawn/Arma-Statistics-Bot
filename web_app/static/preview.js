@@ -170,6 +170,11 @@
             return { id: 999, request_type: JSON.parse(options.body || "{}").request_type };
         }
 
+        if (path.match(/\/api\/v1\/squads\/\d+\/friendship$/) && method === "DELETE") {
+            previewState.me.squad_relation = "outsider";
+            return null;
+        }
+
         if (path.match(/^\/api\/v1\/player\/\d+$/) && method === "DELETE") {
             const squadId = Number(path.split("/").pop());
             previewState.me.memberships = previewState.me.memberships.filter(

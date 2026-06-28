@@ -1087,8 +1087,8 @@ function menuItemConfig() {
         const blocked = relation === "blocked";
         const isFriend = relation === "friend";
         const isOutsider = hasContext && !pending && !blocked && !isFriend && relation !== "member";
-        const requestsDisabled = noContext || pending || blocked || isFriend || relation === "member";
-        const alreadyFriendHint = "Вы уже друг этого отряда";
+        const friendRequestDisabled = noContext || pending || blocked || isFriend || relation === "member";
+        const joinRequestDisabled = noContext || pending || blocked || relation === "member";
 
         const items = [
             {
@@ -1116,42 +1116,59 @@ function menuItemConfig() {
             });
         }
 
-        items.push(
-            {
+        if (isFriend) {
+            items.push({
+                id: "members",
+                label: "Участники",
+                view: "members",
+                disabled: noContext,
+                hint: noContext ? noContextHint : "",
+            });
+        }
+
+        if (!isFriend) {
+            items.push({
                 id: "request-friend",
                 label: "Запросить дружбу с отрядом",
                 action: "request-friend",
-                disabled: requestsDisabled,
+                disabled: friendRequestDisabled,
                 hint: noContext
                     ? noContextHint
                     : pending
                         ? "Заявка на рассмотрении"
                         : blocked
                             ? "Доступ закрыт"
-                            : isFriend
-                                ? alreadyFriendHint
-                                : isOutsider
-                                    ? "Смотреть расписание и отмечаться на играх"
-                                    : "",
-            },
-            {
-                id: "request-join",
-                label: "Запросить вступление в отряд",
-                action: "request-join",
-                disabled: requestsDisabled,
-                hint: noContext
-                    ? noContextHint
-                    : pending
-                        ? "Заявка на рассмотрении"
-                        : blocked
-                            ? "Доступ закрыт"
-                            : isFriend
-                                ? alreadyFriendHint
-                                : isOutsider
-                                    ? "Стать участником отряда"
-                                    : "",
-            },
-        );
+                            : isOutsider
+                                ? "Смотреть расписание и отмечаться на играх"
+                                : "",
+            });
+        }
+
+        items.push({
+            id: "request-join",
+            label: "Запросить вступление в отряд",
+            action: "request-join",
+            disabled: joinRequestDisabled,
+            hint: noContext
+                ? noContextHint
+                : pending
+                    ? "Заявка на рассмотрении"
+                    : blocked
+                        ? "Доступ закрыт"
+                        : isFriend || isOutsider
+                            ? "Стать участником отряда"
+                            : "",
+        });
+
+        if (isFriend) {
+            items.push({
+                id: "leave-squad",
+                label: "Выйти из отряда",
+                action: "leave-friendship",
+                disabled: noContext,
+                hint: noContext ? noContextHint : "",
+            });
+        }
 
         if (soloGroupAdmin) {
             items.unshift({
@@ -1414,6 +1431,10 @@ function renderMainMenu() {
                 await submitSquadRequest(action === "request-friend" ? "friend" : "join");
                 return;
             }
+            if (action === "leave-friendship") {
+                await leaveSquadFriendship();
+                return;
+            }
             const view = button.dataset.view;
             if (view) {
                 showView(view);
@@ -1439,6 +1460,34 @@ async function submitSquadRequest(requestType) {
         appScenario = resolveAppScenario(me, launch);
         renderShell();
         setStatus("Заявка отправлена.");
+    } catch (error) {
+        showErrorToast(error);
+    }
+}
+
+async function leaveSquadFriendship() {
+    const squadId = contextSquadId();
+    if (!squadId) {
+        setStatus("Откройте приложение из чата отряда.", true);
+        return;
+    }
+    const squad = getSquadById(squadId);
+    const squadName = squad?.name || "отряд";
+    const confirmed = await showConfirmDialog({
+        message: `Покинуть отряд «${squadName}»? Вы перестанете быть другом отряда.`,
+        confirmLabel: "Покинуть",
+        cancelLabel: "Отмена",
+        danger: true,
+    });
+    if (!confirmed) {
+        return;
+    }
+    try {
+        await api(`/api/v1/squads/${squadId}/friendship`, { method: "DELETE" });
+        me = await api("/api/v1/me");
+        appScenario = resolveAppScenario(me, launch);
+        renderShell();
+        setStatus("Вы покинули отряд.");
     } catch (error) {
         showErrorToast(error);
     }
