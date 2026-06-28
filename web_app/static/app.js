@@ -1,7 +1,16 @@
 const tg = window.Telegram?.WebApp;
+
+function syncColorScheme() {
+    const scheme = tg?.colorScheme
+        ?? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    document.documentElement.dataset.colorScheme = scheme;
+}
+
+syncColorScheme();
 if (tg) {
     tg.ready();
     tg.expand();
+    tg.onEvent("themeChanged", syncColorScheme);
 }
 
 const loadingOverlay = document.querySelector("#loading-overlay");
@@ -1186,18 +1195,31 @@ function renderMenuTodayEventRow({ schedule_preset, attend_status, comment, will
                 </div>
             </div>
             ${showComment ? `
-                <input
-                    class="menu-today-comment-input"
-                    type="text"
-                    data-menu-comment-for="${schedule_preset.id}"
-                    data-current-status="${attend_status ?? ""}"
-                    maxlength="100"
-                    value="${escapeHtml(comment || "")}"
-                    placeholder="Комментарий"
-                    autocomplete="off"
-                    spellcheck="false"
-                    aria-label="Комментарий к событию"
-                >
+                <div class="menu-today-comment-field">
+                    <input
+                        class="menu-today-comment-input"
+                        type="text"
+                        data-menu-comment-for="${schedule_preset.id}"
+                        data-current-status="${attend_status ?? ""}"
+                        maxlength="100"
+                        value="${escapeHtml(comment || "")}"
+                        placeholder="Комментарий"
+                        autocomplete="off"
+                        spellcheck="false"
+                        aria-label="Комментарий к событию"
+                    >
+                    <button
+                        class="menu-today-comment-submit"
+                        type="button"
+                        data-menu-comment-submit-for="${schedule_preset.id}"
+                        aria-label="Отправить комментарий"
+                        title="Отправить"
+                    >
+                        <svg class="menu-today-comment-submit-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                            <path fill="currentColor" d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z"/>
+                        </svg>
+                    </button>
+                </div>
             ` : ""}
         </div>
     `;
@@ -1205,6 +1227,37 @@ function renderMenuTodayEventRow({ schedule_preset, attend_status, comment, will
 
 function getMenuTodayComment(presetId) {
     return menuTodayEventsEl?.querySelector(`[data-menu-comment-for="${presetId}"]`)?.value?.trim() || "";
+}
+
+async function submitMenuTodayComment(presetId) {
+    const input = menuTodayEventsEl?.querySelector(`[data-menu-comment-for="${presetId}"]`);
+    if (!input) {
+        return;
+    }
+    const attendStatus = input.dataset.currentStatus;
+    if (attendStatus !== "doubts" && attendStatus !== "will_not_attend") {
+        return;
+    }
+    const button = menuTodayEventsEl?.querySelector(`[data-menu-comment-submit-for="${presetId}"]`);
+    if (button) {
+        button.disabled = true;
+    }
+    try {
+        await api(`/api/v1/attendances/${presetId}${memberMenuSquadQuery()}`, {
+            method: "PUT",
+            body: JSON.stringify({
+                attend_status: attendStatus,
+                comment: input.value.trim(),
+            }),
+        });
+        input.blur();
+    } catch (error) {
+        showErrorToast(error);
+    } finally {
+        if (button) {
+            button.disabled = false;
+        }
+    }
 }
 
 function bindMenuTodayCommentInputs() {
@@ -1217,23 +1270,17 @@ function bindMenuTodayCommentInputs() {
             return;
         }
         input.dataset.bound = "1";
-        input.addEventListener("blur", async () => {
-            const presetId = input.dataset.menuCommentFor;
-            const attendStatus = input.dataset.currentStatus;
-            if (attendStatus !== "doubts" && attendStatus !== "will_not_attend") {
-                return;
+        input.addEventListener("keydown", (event) => {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                void submitMenuTodayComment(input.dataset.menuCommentFor);
             }
-            try {
-                await api(`/api/v1/attendances/${presetId}${memberMenuSquadQuery()}`, {
-                    method: "PUT",
-                    body: JSON.stringify({
-                        attend_status: attendStatus,
-                        comment: input.value.trim(),
-                    }),
-                });
-            } catch (error) {
-                showErrorToast(error);
-            }
+        });
+    });
+
+    menuTodayEventsEl.querySelectorAll("[data-menu-comment-submit-for]").forEach((button) => {
+        button.addEventListener("click", () => {
+            void submitMenuTodayComment(button.dataset.menuCommentSubmitFor);
         });
     });
 }
