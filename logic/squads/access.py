@@ -6,9 +6,14 @@ from aiogram import Bot
 from logic.squad_requests import db as squad_requests_db
 from logic.squads.chat_lookup import get_telegram_chat_id_by_squad_id
 from logic.squads.friends import parse_friends_ids
+from logic.telegram.debug_context import get_debug_admin_telegram_id
 from logic.telegram.permissions import is_chat_admin
 
 SquadAccess = Literal["blocked", "outsider", "friend", "member", "admin"]
+
+
+def _is_debug_admin(telegram_id: int) -> bool:
+    return get_debug_admin_telegram_id() == telegram_id
 
 
 async def _get_player_in_squad(
@@ -58,6 +63,8 @@ async def resolve_squad_access(
 
     member = await _get_player_in_squad(conn, telegram_id, squad_id)
     if member:
+        if _is_debug_admin(telegram_id):
+            return "admin"
         if bot is not None:
             chat_id = await get_telegram_chat_id_by_squad_id(conn, squad_id)
             if chat_id is not None and await is_chat_admin(bot, chat_id, telegram_id):

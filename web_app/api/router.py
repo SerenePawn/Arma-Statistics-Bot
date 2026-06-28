@@ -124,6 +124,9 @@ async def require_squad_admin(
     if not member:
         raise SquadPermissionError("access_denied")
 
+    if get_debug_admin_telegram_id() == telegram_id:
+        return
+
     chat_id = await get_squad_chat_id(conn, squad_id)
     if chat_id is None:
         raise SquadPermissionError("telegram_unavailable")
@@ -144,6 +147,8 @@ async def require_squad_member(
 async def require_create_squad_from_chat(bot: Bot, telegram_user: TelegramUser) -> None:
     if telegram_user.launch_chat_id is None:
         raise SquadPermissionError("access_denied")
+    if get_debug_admin_telegram_id() == telegram_user.id:
+        return
     if not await is_chat_admin(bot, telegram_user.launch_chat_id, telegram_user.id):
         raise SquadPermissionError("access_denied")
 

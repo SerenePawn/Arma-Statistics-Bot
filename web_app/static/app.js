@@ -442,8 +442,7 @@ function resolveAppScenario(currentMe, currentLaunch) {
         && !(currentMe?.memberships || []).some((m) => m.squad_id != null);
     const hasMember = (currentMe?.memberships || []).some((m) => m.squad_id != null);
     const inChat = currentLaunch?.source === "squad_chat" && currentLaunch?.squad_id;
-    const adminSquadId = currentMe?.is_admin_of_squad_id
-        ?? (currentMe?.is_squad_admin ? currentMe?.primary_squad_id : null);
+    const adminSquadId = resolveAdminSquadId(currentMe);
     const isAdmin = adminSquadId != null;
 
     if (soloOnly) {
@@ -474,6 +473,42 @@ function getPlayerDisplayName() {
         || me.memberships.find((m) => m.squad_id == null)?.name
         || me.memberships[0]?.name
         || "";
+}
+
+const IDENTITY_DASH = "&nbsp;—&nbsp;";
+
+function isEffectiveSquadAdmin(squadId = null) {
+    if (me?.is_debug_admin) {
+        const memberships = me?.memberships || [];
+        if (squadId == null) {
+            return memberships.some((membership) => membership.squad_id != null);
+        }
+        return memberships.some((membership) => membership.squad_id === squadId);
+    }
+    if (squadId != null) {
+        return me?.is_admin_of_squad_id === squadId
+            || (Boolean(me?.is_squad_admin) && me?.primary_squad_id === squadId);
+    }
+    return Boolean(me?.is_admin_of_squad_id || me?.is_squad_admin);
+}
+
+function resolveAdminSquadId(currentMe = me) {
+    if (currentMe?.is_admin_of_squad_id != null) {
+        return currentMe.is_admin_of_squad_id;
+    }
+    if (currentMe?.is_squad_admin && currentMe?.primary_squad_id != null) {
+        return currentMe.primary_squad_id;
+    }
+    if (currentMe?.is_debug_admin) {
+        const launchSquadId = launch?.squad_id;
+        const memberships = currentMe?.memberships || [];
+        if (launchSquadId != null && memberships.some((membership) => membership.squad_id === launchSquadId)) {
+            return launchSquadId;
+        }
+        const firstMembership = memberships.find((membership) => membership.squad_id != null);
+        return firstMembership?.squad_id ?? null;
+    }
+    return null;
 }
 
 function buildIdentitySquadText() {
@@ -535,7 +570,7 @@ function buildIdentityContentHtml() {
     if (!playerName) {
         return escapeHtml(squadText);
     }
-    return `${escapeHtml(squadText)} — ${buildIdentityNameElementHtml(playerName)}`;
+    return `${escapeHtml(squadText)}${IDENTITY_DASH}${buildIdentityNameElementHtml(playerName)}`;
 }
 
 function debugBadgeHtml() {
@@ -694,7 +729,27 @@ function renderIdentityBar() {
     if (isPersonalMenuActive()) {
         if (isEditing) {
             const squadEl = identityBar.querySelector(".identity-squads");
-            if (squadEl) {
+            const lineEl = identityBar.querySelector(".identity-line");
+            if (lineEl && !squadEl) {
+                const input = lineEl.querySelector(".identity-name-input");
+                const playerName = input?.value || getPlayerDisplayName();
+                lineEl.innerHTML = `${escapeHtml(squadText)}${IDENTITY_DASH}<input
+                    class="identity-name-input identity-player-name"
+                    type="text"
+                    maxlength="50"
+                    value="${escapeHtml(playerName)}"
+                    autocomplete="off"
+                    spellcheck="false"
+                    aria-label="Игровой ник"
+                >`;
+                const nextInput = lineEl.querySelector(".identity-name-input");
+                bindIdentityNameInput(nextInput);
+                if (nextInput) {
+                    nextInput.focus();
+                    const end = nextInput.value.length;
+                    nextInput.setSelectionRange(end, end);
+                }
+            } else if (squadEl) {
                 squadEl.textContent = squadText;
             }
             identityBar.classList.remove("hidden");
@@ -703,10 +758,8 @@ function renderIdentityBar() {
 
         identityBar.className = "identity-bar identity-bar--personal";
         identityBar.innerHTML = `
-            <div class="identity-bar-inner">
-                <span class="identity-squads">${escapeHtml(squadText)}</span>
-                <span class="identity-separator" aria-hidden="true"> — </span>
-                <input
+            <div class="identity-bar-inner identity-bar-inner--personal">
+                <span class="identity-line">${escapeHtml(squadText)}${IDENTITY_DASH}<input
                     class="identity-name-input identity-player-name"
                     type="text"
                     maxlength="50"
@@ -714,8 +767,7 @@ function renderIdentityBar() {
                     autocomplete="off"
                     spellcheck="false"
                     aria-label="Игровой ник"
-                >
-                ${debugBadgeHtml()}
+                ></span>${debugBadgeHtml()}
             </div>
         `;
         bindIdentityNameInput(identityBar.querySelector(".identity-name-input"));
@@ -767,7 +819,7 @@ function renderContextBanner() {
         const inThisSquadContext = contextSquadId() === launch.squad_id;
 
         if (own != null && launch.squad_id === own) {
-            if (me?.is_squad_admin || me?.is_admin_of_squad_id) {
+            if (isEffectiveSquadAdmin()) {
                 text = `Открыто из чата отряда «${name}» · вы администратор`;
                 variant = "own";
             } else {
@@ -844,7 +896,7 @@ function renderOwnSquadDock() {
         return "";
     }
 
-    const isAdmin = Boolean(me?.is_admin_of_squad_id || me?.is_squad_admin);
+    const isAdmin = isEffectiveSquadAdmin();
     const pending = window.__previewAdmin?.pendingCount;
 
     if (isAdmin) {
@@ -996,12 +1048,9 @@ function menuItemConfig() {
     const inForeign = isForeignChatContext() && !dockMode && !inPersonalSquadPick;
     const hasContext = contextSquadId() != null;
     const canScheduleMember = relation === "member" || relation === "friend";
-    const isAdmin = Boolean(me?.is_admin_of_squad_id || me?.is_squad_admin);
+    const isAdmin = isEffectiveSquadAdmin();
     const dmSquadId = isPersonalMenuActive() ? dmActiveSquadId : null;
-    const dmIsAdmin = dmSquadId != null && (
-        me?.is_admin_of_squad_id === dmSquadId
-        || (me?.is_squad_admin && me?.primary_squad_id === dmSquadId)
-    );
+    const dmIsAdmin = dmSquadId != null && isEffectiveSquadAdmin(dmSquadId);
 
     if (shouldUseSoloMenuInContext()) {
         const noContext = !hasContext;
@@ -2389,13 +2438,10 @@ async function renderMembers() {
 async function renderAdmin() {
     syncViewChrome();
 
-    const squadId = dockMode ? ownSquadId() : (contextSquadId() ?? me?.is_admin_of_squad_id ?? me?.primary_squad_id);
+    const squadId = dockMode ? ownSquadId() : (contextSquadId() ?? resolveAdminSquadId() ?? me?.primary_squad_id);
     const isAdmin = dmActiveSquadId != null
-        ? (
-            me?.is_admin_of_squad_id === dmActiveSquadId
-            || (me?.is_squad_admin && me?.primary_squad_id === dmActiveSquadId)
-        )
-        : Boolean(me?.is_admin_of_squad_id || me?.is_squad_admin);
+        ? isEffectiveSquadAdmin(dmActiveSquadId)
+        : isEffectiveSquadAdmin(squadId);
 
     if (!squadId || !isAdmin) {
         adminTab.innerHTML = `<div class="empty">Недостаточно прав.</div>`;

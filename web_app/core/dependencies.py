@@ -33,9 +33,29 @@ def _extract_init_data(
     return None
 
 
+def debug_mode_enabled() -> bool:
+    settings = state.settings
+    if settings is None:
+        return False
+    return bool(settings.WEB_APP_DEBUG_CODE.strip())
+
+
+def _activate_debug_admin_from_token(telegram_id: int, x_debug_token: str | None) -> None:
+    if not debug_mode_enabled() or state.settings is None:
+        return
+
+    token = (x_debug_token or "").strip()
+    if not token:
+        return
+
+    if verify_debug_token(token, telegram_id, state.settings.API_TOKEN):
+        set_debug_admin_telegram_id(telegram_id)
+
+
 async def get_telegram_user(
     authorization: str | None = Header(default=None),
     x_telegram_init_data: str | None = Header(default=None),
+    x_debug_token: str | None = Header(default=None, alias="X-Debug-Token"),
 ) -> TelegramUser:
     if not state.settings:
         raise RuntimeError("Application state has no settings")
@@ -44,29 +64,15 @@ async def get_telegram_user(
     if init_data is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Telegram auth data required")
 
-    return validate_init_data(init_data, state.settings.API_TOKEN)
-
-
-def debug_mode_enabled() -> bool:
-    settings = state.settings
-    if settings is None:
-        return False
-    return bool(settings.WEB_APP_DEBUG_CODE.strip())
+    telegram_user = validate_init_data(init_data, state.settings.API_TOKEN)
+    _activate_debug_admin_from_token(telegram_user.id, x_debug_token)
+    return telegram_user
 
 
 async def activate_debug_admin(
     telegram_user: TelegramUser = Depends(get_telegram_user),
-    x_debug_token: str | None = Header(default=None, alias="X-Debug-Token"),
 ) -> None:
-    if not debug_mode_enabled():
-        return
-
-    token = (x_debug_token or "").strip()
-    if not token or state.settings is None:
-        return
-
-    if verify_debug_token(token, telegram_user.id, state.settings.API_TOKEN):
-        set_debug_admin_telegram_id(telegram_user.id)
+    return None
 
 
 async def get_bot() -> Bot:

@@ -886,6 +886,25 @@ textarea:disabled {
     color: var(--hint);
     font-size: 14px;
     line-height: 1.45;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+}
+
+.identity-text,
+.identity-line {
+    min-width: 0;
+    color: var(--hint);
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+}
+
+.identity-bar-inner--personal {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
 }
 
 .identity-bar-inner {
@@ -898,11 +917,6 @@ textarea:disabled {
 .identity-bar-inner--group {
     justify-content: space-between;
     gap: 12px;
-}
-
-.identity-text {
-    min-width: 0;
-    color: var(--hint);
 }
 
 .identity-squads {
@@ -927,11 +941,25 @@ textarea:disabled {
     font: inherit;
     font-size: 14px;
     font-weight: 600;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.identity-line .identity-name-input {
+    display: inline-block;
+    width: auto;
+    min-width: 6ch;
+    max-width: min(100%, 28ch);
+    flex: initial;
+    vertical-align: baseline;
+    padding: 2px 6px;
 }
 
 .identity-name-input:focus {
     outline: none;
     border-color: color-mix(in srgb, var(--button) 55%, transparent);
+    user-select: text;
+    -webkit-user-select: text;
 }
 
 .identity-player-name:not(.identity-name-input) {

@@ -16,6 +16,7 @@ from logic.squads.access import (
     resolve_squad_access,
     squad_relation_for_ui,
 )
+from logic.telegram.debug_context import get_debug_admin_telegram_id
 from logic.telegram.permissions import get_chat_member_status_and_display_name, is_chat_admin
 from web_app.core.permissions import SquadPermissionError
 from web_app.core.security import TelegramUser
@@ -99,6 +100,23 @@ async def enrich_me(
         if context_squad and context_squad.get("games"):
             main_game_ids = context_squad.get("main_game_ids") or []
             default_game_id = main_game_ids[0] if main_game_ids else context_squad["games"][0]["id"]
+
+    if get_debug_admin_telegram_id() == me["telegram_id"]:
+        for membership in me.get("memberships", []):
+            squad_id = membership.get("squad_id")
+            if squad_id is None:
+                continue
+            if is_admin_of_squad_id is None:
+                is_admin_of_squad_id = squad_id
+            if squad_id == primary_squad_id:
+                is_squad_admin = True
+        if context_squad_id is not None:
+            if await repository.get_player_in_squad(conn, me["telegram_id"], context_squad_id):
+                is_admin_of_squad_id = context_squad_id
+                if context_squad_id == primary_squad_id:
+                    is_squad_admin = True
+        if launch_source == "squad_chat" and telegram_user.launch_chat_id is not None:
+            can_create_squad = True
 
     return me | {
         "is_squad_admin": is_squad_admin,
