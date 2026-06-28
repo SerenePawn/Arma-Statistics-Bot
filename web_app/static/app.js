@@ -995,7 +995,7 @@ function renderDmSquadPickerHtml() {
                         <div class="dm-squad-card-actions">
                             <div class="dm-squad-split-button">
                                 <button
-                                    class="menu-button menu-button--soft dm-squad-open"
+                                    class="menu-button dm-squad-open"
                                     type="button"
                                     data-squad-id="${membership.squad_id}"
                                 >Открыть</button>
@@ -1110,7 +1110,7 @@ function renderMainMenu() {
     mainMenuGrid.innerHTML = groupMenuBack + dmBackButton + items.map((item) => `
         <div class="menu-item-wrap">
             <button
-                class="menu-button${squadMemberMenu ? " menu-button--soft" : ""}"
+                class="menu-button"
                 type="button"
                 data-view="${item.view || ""}"
                 data-action="${item.action || ""}"
