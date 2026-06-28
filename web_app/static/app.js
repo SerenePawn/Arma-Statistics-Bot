@@ -402,8 +402,22 @@ function shouldUseSoloMenuInContext() {
     return isSoloOnly() || shouldUseForeignSoloMenu();
 }
 
+function isDebugAdminActive() {
+    return Boolean(me?.is_debug_admin);
+}
+
+function blocksForeignMenu() {
+    return isForeignChatContext() && !dockMode && !isDebugAdminActive();
+}
+
 function shouldShowDmSquadPicker() {
-    return isPersonalMenuActive() && squadMemberships().length > 0 && currentView === "home" && dmActiveSquadId == null;
+    if (!isPersonalMenuActive() || currentView !== "home" || dmActiveSquadId != null) {
+        return false;
+    }
+    if (isDebugAdminActive()) {
+        return squads.length > 0;
+    }
+    return squadMemberships().length > 0;
 }
 
 function isSoloGroupAdminNoSquad() {
@@ -466,6 +480,9 @@ function resolveAppScenario(currentMe, currentLaunch) {
         const own = currentMe?.primary_squad_id ?? squadMemberships()[0]?.squad_id;
         const foreign = own != null && currentLaunch.squad_id !== own;
         if (foreign) {
+            if (currentMe?.is_debug_admin) {
+                return 7;
+            }
             return isAdmin ? 6 : 5;
         }
         return isAdmin ? 7 : 4;
@@ -647,6 +664,7 @@ async function unlockDebugMode() {
         });
         setStoredDebugToken(result.token);
         me = await api("/api/v1/me");
+        squads = await api("/api/v1/squads");
         appScenario = resolveAppScenario(me, launch);
         updateDebugPanelState();
         renderShell();
@@ -1054,9 +1072,9 @@ function shouldUseGroupMenuForSquad(squadId) {
 function menuItemConfig() {
     const relation = me?.squad_relation;
     const inPersonalSquadPick = isPersonalMenuActive() && dmActiveSquadId != null;
-    const inForeign = isForeignChatContext() && !dockMode && !inPersonalSquadPick;
+    const inForeign = blocksForeignMenu() && !inPersonalSquadPick;
     const hasContext = contextSquadId() != null;
-    const canScheduleMember = relation === "member" || relation === "friend";
+    const canScheduleMember = relation === "member" || relation === "friend" || isDebugAdminActive();
     const isAdmin = isEffectiveSquadAdmin();
     const dmSquadId = isPersonalMenuActive() ? dmActiveSquadId : null;
     const dmIsAdmin = dmSquadId != null && isEffectiveSquadAdmin(dmSquadId);
@@ -1170,7 +1188,9 @@ function menuItemConfig() {
             id: "members",
             label: "Участники",
             view: "members",
-            disabled: dmSquadId == null ? (inForeign || !squadMemberships().length) : false,
+            disabled: dmSquadId == null
+                ? (inForeign || (!isDebugAdminActive() && !squadMemberships().length))
+                : false,
             hint: dmSquadId != null ? "" : (inForeign ? "Используйте блок «Ваш отряд»" : ""),
         },
     ];
@@ -1189,7 +1209,61 @@ function menuItemConfig() {
     return { type: "member", items };
 }
 
+function renderDmSquadPickerCard(squadId, squadName, options = {}) {
+    const { showLeave = false, launchBadge = false } = options;
+    const leaveButton = showLeave
+        ? `<button
+                class="ghost-button membership-leave dm-squad-leave dm-squad-leave-icon"
+                type="button"
+                data-squad-id="${squadId}"
+                title="Выйти"
+                aria-label="Выйти из отряда"
+            ><span aria-hidden="true">✕</span></button>`
+        : "";
+
+    return `
+        <div class="dm-squad-card">
+            <p class="dm-squad-card-name">
+                ${escapeHtml(squadName || "Отряд")}
+                ${launchBadge ? '<span class="admin-badge">чат</span>' : ""}
+            </p>
+            <div class="dm-squad-card-actions">
+                <div class="dm-squad-split-button${showLeave ? "" : " dm-squad-split-button--solo"}">
+                    <button
+                        class="menu-button dm-squad-open"
+                        type="button"
+                        data-squad-id="${squadId}"
+                    >Открыть</button>
+                    ${leaveButton}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
 function renderDmSquadPickerHtml() {
+    if (isDebugAdminActive()) {
+        const entries = [...squads].sort((left, right) => (left.name || "").localeCompare(right.name || "", "ru"));
+        if (!entries.length) {
+            return "";
+        }
+
+        return `
+            <div class="dm-squad-picker">
+                <p class="memberships-label">Все отряды</p>
+                <div class="dm-squad-cards">
+                    ${entries.map((squad) => {
+                        const membership = squadMemberships().find((entry) => entry.squad_id === squad.id);
+                        return renderDmSquadPickerCard(squad.id, squad.name, {
+                            showLeave: Boolean(membership),
+                            launchBadge: isGroupChatLaunch() && launch?.squad_id === squad.id,
+                        });
+                    }).join("")}
+                </div>
+            </div>
+        `;
+    }
+
     const memberships = squadMemberships();
     if (!memberships.length) {
         return "";
@@ -1199,27 +1273,11 @@ function renderDmSquadPickerHtml() {
         <div class="dm-squad-picker">
             <p class="memberships-label">Мои отряды</p>
             <div class="dm-squad-cards">
-                ${memberships.map((membership) => `
-                    <div class="dm-squad-card">
-                        <p class="dm-squad-card-name">${escapeHtml(membership.squad_name || "Отряд")}</p>
-                        <div class="dm-squad-card-actions">
-                            <div class="dm-squad-split-button">
-                                <button
-                                    class="menu-button dm-squad-open"
-                                    type="button"
-                                    data-squad-id="${membership.squad_id}"
-                                >Открыть</button>
-                                <button
-                                    class="ghost-button membership-leave dm-squad-leave dm-squad-leave-icon"
-                                    type="button"
-                                    data-squad-id="${membership.squad_id}"
-                                    title="Выйти"
-                                    aria-label="Выйти из отряда"
-                                ><span aria-hidden="true">✕</span></button>
-                            </div>
-                        </div>
-                    </div>
-                `).join("")}
+                ${memberships.map((membership) => renderDmSquadPickerCard(
+                    membership.squad_id,
+                    membership.squad_name,
+                    { showLeave: true },
+                )).join("")}
             </div>
         </div>
     `;
@@ -1229,7 +1287,7 @@ function bindDmSquadPicker() {
     mainMenuGrid.querySelectorAll(".dm-squad-open").forEach((button) => {
         button.addEventListener("click", () => {
             const squadId = Number(button.dataset.squadId);
-            if (personalMenuFromGroup && shouldUseGroupMenuForSquad(squadId)) {
+            if (personalMenuFromGroup && shouldUseGroupMenuForSquad(squadId) && !isDebugAdminActive()) {
                 personalMenuFromGroup = false;
                 dmActiveSquadId = null;
             } else {
@@ -1288,7 +1346,7 @@ function renderMainMenu() {
     }
 
     const inForeign = isForeignChatContext() && !dockMode;
-    if (inForeign && appScenario === 6 && !shouldUseForeignSoloMenu()) {
+    if (inForeign && appScenario === 6 && !shouldUseForeignSoloMenu() && !isDebugAdminActive()) {
         mainMenu.classList.add("hidden");
         return;
     }
