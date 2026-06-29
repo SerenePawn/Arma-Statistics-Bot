@@ -1,16 +1,8 @@
 const tg = window.Telegram?.WebApp;
-
-function syncColorScheme() {
-    const scheme = tg?.colorScheme
-        ?? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-    document.documentElement.dataset.colorScheme = scheme;
-}
-
-syncColorScheme();
 if (tg) {
     tg.ready();
     tg.expand();
-    tg.onEvent("themeChanged", syncColorScheme);
+    window.syncAppTheme?.();
 }
 
 const loadingOverlay = document.querySelector("#loading-overlay");
